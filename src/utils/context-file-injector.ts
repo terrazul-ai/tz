@@ -48,25 +48,28 @@ export async function injectPackageContext(
     fileExists = false;
   }
 
-  // Check if markers already exist
-  const hasBeginMarker = content.includes(BEGIN_MARKER);
-  const hasEndMarker = content.includes(END_MARKER);
+  // Check if markers exist AT THE START of the file (not embedded in documentation)
+  const hasBeginMarker = content.startsWith(BEGIN_MARKER);
+  // Only look for end marker if begin marker is at start
+  const endMarkerIndex = hasBeginMarker ? content.indexOf(END_MARKER) : -1;
+  const hasEndMarker = endMarkerIndex !== -1;
 
   // Generate the new context block
   const expectedBlock = generateContextBlock(projectRoot, packageFiles, packages);
 
-  // If both markers exist, the injection is already present
+  // If both markers exist at the start, the injection is already present
   if (hasBeginMarker && hasEndMarker) {
-    // Verify the content between markers is correct
-    const regex = new RegExp(`${escapeRegExp(BEGIN_MARKER)}[\\s\\S]*?${escapeRegExp(END_MARKER)}`);
+    // Extract the existing block
+    const existingBlock = content.slice(0, endMarkerIndex + END_MARKER.length);
 
-    if (content.includes(expectedBlock)) {
+    if (existingBlock === expectedBlock) {
       // Already injected and correct, no changes needed
       return { modified: false };
     }
 
-    // Markers exist but content is wrong, replace the block
-    const newContent = content.replace(regex, expectedBlock);
+    // Markers exist but content is wrong, replace the block at the start
+    const afterBlock = content.slice(endMarkerIndex + END_MARKER.length);
+    const newContent = expectedBlock + afterBlock;
 
     if (!options.dryRun) {
       await fs.writeFile(filePath, newContent, 'utf8');
@@ -75,18 +78,20 @@ export async function injectPackageContext(
     return { modified: true, content: newContent };
   }
 
-  // If only one marker exists, remove it and re-inject cleanly
-  if (hasBeginMarker || hasEndMarker) {
-    content = content.replaceAll(new RegExp(escapeRegExp(BEGIN_MARKER), 'g'), '');
-    content = content.replaceAll(new RegExp(escapeRegExp(END_MARKER), 'g'), '');
+  // If begin marker is at start but no end marker, remove the orphan begin marker
+  // (This should be rare - indicates corruption)
+  if (hasBeginMarker && !hasEndMarker) {
+    content = content.slice(BEGIN_MARKER.length);
   }
 
   // Inject the package context block
   const contextBlock = expectedBlock;
 
-  // New file or empty file - just add the block; otherwise append at the end with proper spacing
+  // New file or empty file - just add the block; otherwise prepend at the beginning with proper spacing
   const newContent =
-    !fileExists || content.trim() === '' ? contextBlock : content.trimEnd() + '\n\n' + contextBlock;
+    !fileExists || content.trim() === ''
+      ? contextBlock
+      : contextBlock + '\n\n' + content.trimStart();
 
   if (!options.dryRun) {
     await fs.mkdir(path.dirname(filePath), { recursive: true });
@@ -115,19 +120,18 @@ export async function removePackageContext(
     return { modified: false };
   }
 
-  // Check if markers exist
-  const hasMarkers = content.includes(BEGIN_MARKER) && content.includes(END_MARKER);
+  // Check if markers exist AT THE START of the file (not embedded in documentation)
+  const hasBeginMarker = content.startsWith(BEGIN_MARKER);
+  const endMarkerIndex = hasBeginMarker ? content.indexOf(END_MARKER) : -1;
+  const hasMarkers = hasBeginMarker && endMarkerIndex !== -1;
 
   if (!hasMarkers) {
     return { modified: false };
   }
 
-  // Remove the entire block including markers
-  const regex = new RegExp(
-    `\\n*${escapeRegExp(BEGIN_MARKER)}[\\s\\S]*?${escapeRegExp(END_MARKER)}\\n*`,
-    'g',
-  );
-  const newContent = content.replace(regex, '').trimEnd() + '\n';
+  // Remove the entire block including markers from the start of the file
+  const afterBlock = content.slice(endMarkerIndex + END_MARKER.length);
+  const newContent = afterBlock.trim() + '\n';
 
   if (!options.dryRun) {
     await fs.writeFile(filePath, newContent, 'utf8');
@@ -137,12 +141,16 @@ export async function removePackageContext(
 }
 
 /**
- * Check if a context file has the package context block injected.
+ * Check if a context file has the package context block injected at the start.
+ * Returns false if markers appear elsewhere in the file (e.g., in documentation).
  */
 export async function hasPackageContext(filePath: string): Promise<boolean> {
   try {
     const content = await fs.readFile(filePath, 'utf8');
-    return content.includes(BEGIN_MARKER) && content.includes(END_MARKER);
+    // Only consider markers valid if BEGIN is at the start of the file
+    const hasBeginMarker = content.startsWith(BEGIN_MARKER);
+    const hasEndMarker = hasBeginMarker && content.includes(END_MARKER);
+    return hasBeginMarker && hasEndMarker;
   } catch {
     return false;
   }
@@ -201,11 +209,4 @@ function generateContextBlock(
 
   lines.push(END_MARKER);
   return lines.join('\n');
-}
-
-/**
- * Escape special regex characters.
- */
-function escapeRegExp(str: string): string {
-  return str.replaceAll(/[$()*+.?[\\\]^{|}]/g, String.raw`\$&`);
 }
