@@ -303,11 +303,6 @@ Commands that call `planAndRender` (`apply`, `run`, `add`) show an Ink spinner d
   - `settings`, `settingsLocal` - Tool-specific configuration files
   - `mcpServers` - MCP server configuration file
 
-- Schema files for `askAgent` JSON validation are stored in `templates/schemas/`:
-  - Typically Zod schemas exported as `.mjs` modules
-  - Referenced in templates via `{ schema: { file: 'schemas/analyze-project.mjs' } }`
-  - Resolution automatically prepends `templates/` to find `templates/schemas/analyze-project.mjs`
-
 ### `agents-lock.toml`
 
 - Deterministic, includes:
@@ -505,7 +500,7 @@ tz extract --from .claude --out ../my-package --name @user/pkg --pkg-version 0.1
 
 2. Validates filesystem layout:
    - Allowed dirs: `configurations/`, `agents/`, `commands/`, `hooks/`, `mcp/`, `README.md`.
-   - All content under `templates/` is allowed (including `templates/schemas/` for Zod schemas).
+   - All content under `templates/` is allowed.
    - No disallowed executables outside `commands/`.
 
 3. Optional (online): resolve dependencies exist in registry (skippable with `--offline`).
@@ -941,26 +936,6 @@ IMPORTANT IMPORTANT IMPORTANT, REQUIRED RUN AND FIX ANY ERRORS FROM
 - Documentation containing example template syntax (e.g., `templates/EXAMPLES.md`)
 - Tutorial or reference files showing how to use `{{ askUser() }}` or `{{ askAgent() }}`
 - Any file that should preserve template-like syntax without rendering
-
-**Schema Files for JSON Validation**:
-
-- Schema files (typically Zod schemas) are stored in `templates/schemas/` directory
-- Common file extensions: `.mjs`, `.js`, `.json`
-- Referenced in `askAgent` snippets via the `schema` option:
-  ```handlebars
-  {{ askAgent('Analyze project', { json: true, schema: { file: 'schemas/analyze-project.mjs' } }) }}
-  ```
-- Schema resolution automatically prepends `templates/` to the file path
-- Example package structure:
-  ```
-  @scope/package/
-  └─ templates/
-     ├─ CLAUDE.md.hbs
-     ├─ prompts/
-     │  └─ analyze-project.txt
-     └─ schemas/
-        └─ analyze-project.mjs  (exports Zod schema)
-  ```
 
 **Context Injection**:
 

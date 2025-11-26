@@ -211,59 +211,6 @@ describe('snippet executor', () => {
     expect(prompt).toContain('Summarize Demo Project');
   });
 
-  it('validates JSON output via schema reference', async () => {
-    const schemaDir = path.join(packageDir, 'templates', 'schemas');
-    await fs.mkdir(schemaDir, { recursive: true });
-    const schemaFile = path.join(schemaDir, 'summary-schema.mjs');
-    await fs.writeFile(
-      schemaFile,
-      `
-        import { z } from 'zod';
-        export const SummarySchema = z.object({ result: z.string() });
-        export default SummarySchema;
-      `,
-      'utf8',
-    );
-
-    invokeToolMock.mockResolvedValueOnce({
-      command: 'claude',
-      args: [],
-      stdout: '{"result":"done"}',
-      stderr: '',
-    });
-
-    const snippets = parseSnippets(
-      "{{ askAgent('Prompt', { json: true, schema: { file: 'schemas/summary-schema.mjs', exportName: 'SummarySchema' } }) }}",
-    );
-    const context = await executeSnippets(snippets, makeOptions());
-    expect(context.snippets.snippet_0.value).toEqual({ result: 'done' });
-  });
-
-  it('captures schema validation errors', async () => {
-    const schemaDir = path.join(packageDir, 'templates', 'schemas');
-    await fs.mkdir(schemaDir, { recursive: true });
-    const schemaFile = path.join(schemaDir, 'summary-schema.mjs');
-    await fs.writeFile(
-      schemaFile,
-      `
-        import { z } from 'zod';
-        export default z.object({ result: z.string() });
-      `,
-      'utf8',
-    );
-    invokeToolMock.mockResolvedValueOnce({
-      command: 'claude',
-      args: [],
-      stdout: '{"other":"value"}',
-      stderr: '',
-    });
-    const snippets = parseSnippets(
-      "{{ askAgent('Prompt', { json: true, schema: 'schemas/summary-schema.mjs' }) }}",
-    );
-    const context = await executeSnippets(snippets, makeOptions());
-    expect(context.snippets.snippet_0.error?.message).toContain('Schema validation failed');
-  });
-
   it('uses overridden tool specification when provided', async () => {
     invokeToolMock.mockResolvedValueOnce({
       command: 'codex',
@@ -277,29 +224,6 @@ describe('snippet executor', () => {
     const call = invokeToolMock.mock.calls[0]?.[0];
     expect(call?.tool.type).toBe('codex');
     expect(call?.tool.args).toEqual(['exec']);
-  });
-
-  it('records errors when schema is provided without json flag', async () => {
-    const schemaDir = path.join(packageDir, 'templates', 'schemas');
-    await fs.mkdir(schemaDir, { recursive: true });
-    const schemaFile = path.join(schemaDir, 'schema.mjs');
-    await fs.writeFile(
-      schemaFile,
-      `
-        import { z } from 'zod';
-        export default z.object({ value: z.string() });
-      `,
-      'utf8',
-    );
-    invokeToolMock.mockResolvedValueOnce({
-      command: 'claude',
-      args: [],
-      stdout: 'plain text',
-      stderr: '',
-    });
-    const snippets = parseSnippets("{{ askAgent('Prompt', { schema: 'schemas/schema.mjs' }) }}");
-    const context = await executeSnippets(snippets, makeOptions());
-    expect(context.snippets.snippet_0.error?.message).toMatch(/requires json: true/);
   });
 
   it('emits askAgent:end for cached prompts', async () => {

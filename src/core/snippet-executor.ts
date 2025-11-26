@@ -1,9 +1,7 @@
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
-import { pathToFileURL } from 'node:url';
 
 import inquirer from 'inquirer';
-import { z } from 'zod';
 
 import { DIRECTORY_DEFAULT_FILENAMES, safeResolveWithin } from './destinations.js';
 import { ErrorCode, TerrazulError } from './errors.js';
@@ -17,7 +15,6 @@ import type {
   ParsedSnippet,
   ParsedAskAgentSnippet,
   ParsedAskUserSnippet,
-  SchemaReference,
   SnippetExecutionContext,
   SnippetValue,
 } from '../types/snippet.js';
@@ -252,16 +249,6 @@ async function runAskAgent(
     value = preferred === undefined ? cleaned.trim() : preferred;
   }
 
-  if (snippet.options.schema && !snippet.options.json) {
-    throw new TerrazulError(
-      ErrorCode.INVALID_ARGUMENT,
-      'askAgent schema option requires json: true',
-    );
-  }
-  if (snippet.options.schema) {
-    value = await validateWithSchema(value, snippet.options.schema, options);
-  }
-
   const result: SnippetValue = { value };
   cache.set(cacheKey, { value: result });
   options.report?.({ type: 'askAgent:end', snippet, prompt: basePrompt, value });
@@ -337,9 +324,6 @@ function buildCacheKey(
   timeoutMs: number | undefined,
   systemPrompt: string,
 ): CacheKey {
-  const schemaRef = snippet.options.schema
-    ? `${snippet.options.schema.file}::${snippet.options.schema.exportName ?? 'default'}`
-    : 'none';
   return JSON.stringify({
     tool: tool.type,
     command: tool.command,
@@ -349,7 +333,6 @@ function buildCacheKey(
     json: snippet.options.json ?? false,
     safeMode,
     timeoutMs: timeoutMs ?? null,
-    schema: schemaRef,
     systemPrompt,
   });
 }
@@ -367,63 +350,6 @@ function enforceSingleTurnDirective(prompt: string): string {
   }
   const trimmed = prompt.trimEnd();
   return `${trimmed}\n\n---\n${SINGLE_TURN_DIRECTIVE}`;
-}
-
-async function validateWithSchema(
-  value: unknown,
-  schemaRef: SchemaReference,
-  options: ExecuteSnippetsOptions,
-): Promise<unknown> {
-  let absolute: string;
-  if (path.isAbsolute(schemaRef.file)) {
-    absolute = schemaRef.file;
-  } else {
-    try {
-      // Schema files are located in templates/ subdirectory
-      const schemaRelPath = schemaRef.file.startsWith('templates/')
-        ? schemaRef.file
-        : path.join('templates', schemaRef.file);
-      absolute = safeResolveWithin(options.packageDir, schemaRelPath);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      throw new TerrazulError(
-        ErrorCode.FILE_NOT_FOUND,
-        `Failed to resolve schema path '${schemaRef.file}': ${message}`,
-      );
-    }
-  }
-  let mod: unknown;
-  try {
-    mod = await import(pathToFileURL(absolute).href);
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    throw new TerrazulError(
-      ErrorCode.FILE_NOT_FOUND,
-      `Failed to load schema module '${schemaRef.file}': ${message}`,
-    );
-  }
-  const exportName = schemaRef.exportName ?? 'default';
-  const schemaCandidate =
-    (mod as Record<string, unknown>)[exportName] ??
-    (exportName === 'default' ? (mod as { default?: unknown }).default : undefined);
-  if (!schemaCandidate || typeof (schemaCandidate as { parse?: unknown }).parse !== 'function') {
-    throw new TerrazulError(
-      ErrorCode.INVALID_ARGUMENT,
-      `Schema export '${exportName}' from '${schemaRef.file}' is not a Zod schema`,
-    );
-  }
-  const schema = schemaCandidate as z.ZodTypeAny;
-  try {
-    return schema.parse(value);
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      throw new TerrazulError(
-        ErrorCode.TOOL_OUTPUT_PARSE_ERROR,
-        `Schema validation failed: ${error.errors.map((e) => e.message).join(', ')}`,
-      );
-    }
-    throw error;
-  }
 }
 
 function toSnippetError(error: unknown) {
