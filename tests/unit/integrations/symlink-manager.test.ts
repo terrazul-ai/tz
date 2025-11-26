@@ -404,6 +404,64 @@ describe('symlink-manager', () => {
     });
   });
 
+  describe('symlink recreation', () => {
+    it('should recreate symlink if deleted from disk but registry entry exists', async () => {
+      // 1. Setup package with agent file
+      const pkgRoot = path.join(agentModulesDir, '@user', 'pkg');
+      const agentsDir = path.join(pkgRoot, 'claude', 'agents');
+      await fs.mkdir(agentsDir, { recursive: true });
+      await fs.writeFile(path.join(agentsDir, 'agent.md'), '# Agent');
+
+      const renderedFiles = [
+        {
+          pkgName: '@user/pkg',
+          source: path.join(agentsDir, 'agent.md'),
+          tool: 'claude' as const,
+          isMcpConfig: false,
+        },
+      ];
+
+      // 2. Create symlink initially
+      const result1 = await createSymlinks({
+        projectRoot: tmpDir,
+        packages: ['@user/pkg'],
+        renderedFiles,
+        activeTool: 'claude',
+      });
+      expect(result1.created).toHaveLength(1);
+
+      // 3. Delete the symlink from disk (simulating manual deletion)
+      const symlinkPath = path.join(claudeDir, 'agents', '@user-pkg-agent.md');
+      await fs.rm(symlinkPath);
+
+      // 4. Verify symlink is gone
+      const existsBeforeRecreate = await fs
+        .access(symlinkPath)
+        .then(() => true)
+        .catch(() => false);
+      expect(existsBeforeRecreate).toBe(false);
+
+      // 5. Run createSymlinks again - should recreate
+      const result2 = await createSymlinks({
+        projectRoot: tmpDir,
+        packages: ['@user/pkg'],
+        renderedFiles,
+        activeTool: 'claude',
+      });
+
+      // 6. Verify symlink was recreated (not skipped)
+      expect(result2.created).toHaveLength(1);
+      expect(result2.skipped).toHaveLength(0);
+
+      // 7. Verify symlink exists on disk
+      const existsAfterRecreate = await fs
+        .access(symlinkPath)
+        .then(() => true)
+        .catch(() => false);
+      expect(existsAfterRecreate).toBe(true);
+    });
+  });
+
   describe('removeSymlinks', () => {
     it('should remove symlinks for a specific package', async () => {
       const pkgRoot = path.join(agentModulesDir, '@user', 'pkg');
