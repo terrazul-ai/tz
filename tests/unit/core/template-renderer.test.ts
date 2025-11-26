@@ -353,4 +353,72 @@ Version: {{pkg.version}}`;
     const templateOutputExists = await fs.stat(templateOutputPath).catch(() => null);
     expect(templateOutputExists).toBeTruthy();
   });
+
+  it('includes skipped files in renderedFiles for symlink recreation', async () => {
+    // This test verifies that when files are skipped (already exist),
+    // they are still included in renderedFiles so symlinks can be recreated
+    const storeRoot = path.join(fakeHomeDir, '.terrazul', 'store');
+
+    // Create a new package for this test
+    const skipPkgRoot = path.join(storeRoot, '@test', 'skip', '1.0.0');
+    await write(
+      path.join(skipPkgRoot, 'agents.toml'),
+      `\n[package]\nname = "@test/skip"\nversion = "1.0.0"\n\n[exports.claude]\nsubagentsDir = "templates/agents"\n`,
+    );
+    await write(
+      path.join(skipPkgRoot, 'templates', 'agents', 'myagent.md.hbs'),
+      '# Agent {{pkg.name}}',
+    );
+
+    // Create lockfile entry
+    const lockfileContent = await fs.readFile(path.join(projectRoot, 'agents-lock.toml'), 'utf8');
+    const updatedLockfile =
+      lockfileContent +
+      `\n[packages."@test/skip"]\nversion = "1.0.0"\nresolved = "http://localhost/skip"\nintegrity = "sha256-test"\ndependencies = { }\n`;
+    await fs.writeFile(path.join(projectRoot, 'agents-lock.toml'), updatedLockfile, 'utf8');
+
+    // Create package directory
+    const skipOutputDir = path.join(agentModules, '@test', 'skip');
+    await fs.mkdir(skipOutputDir, { recursive: true });
+
+    // First render - should write the file and include it in renderedFiles
+    const firstResult = await planAndRender(projectRoot, agentModules, {
+      packageName: '@test/skip',
+      noCache: true,
+      storeDir: storeRoot,
+      force: false,
+    });
+
+    expect(firstResult.written.length).toBeGreaterThan(0);
+    expect(firstResult.renderedFiles.length).toBeGreaterThan(0);
+
+    // Find the agent file in renderedFiles
+    const agentFile = firstResult.renderedFiles.find(
+      (f) => f.source.includes('agents') && f.source.includes('myagent'),
+    );
+    expect(agentFile).toBeDefined();
+
+    // Second render (without force) - files should be skipped but STILL in renderedFiles
+    const secondResult = await planAndRender(projectRoot, agentModules, {
+      packageName: '@test/skip',
+      noCache: true,
+      storeDir: storeRoot,
+      force: false,
+    });
+
+    // Verify files were skipped (not written)
+    expect(secondResult.skipped.length).toBeGreaterThan(0);
+    expect(secondResult.written.length).toBe(0);
+
+    // CRITICAL: Verify skipped files are STILL in renderedFiles
+    // This is necessary for symlink recreation to work
+    expect(secondResult.renderedFiles.length).toBeGreaterThan(0);
+
+    const skippedAgentFile = secondResult.renderedFiles.find(
+      (f) => f.source.includes('agents') && f.source.includes('myagent'),
+    );
+    expect(skippedAgentFile).toBeDefined();
+    expect(skippedAgentFile?.tool).toBe('claude');
+    expect(skippedAgentFile?.pkgName).toBe('@test/skip');
+  });
 });

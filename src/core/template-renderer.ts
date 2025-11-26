@@ -690,6 +690,17 @@ export async function planAndRender(
 
       if (!opts.force && destStat?.isFile()) {
         skipped.push(makeSkip(dest, 'exists'));
+
+        // Still track skipped file metadata for symlink manager
+        // This ensures symlinks can be recreated even when templates are skipped
+        renderedFiles.push({
+          pkgName: p.name,
+          source: dest,
+          dest,
+          tool: item.tool,
+          isMcpConfig: item.isMcpConfig,
+        });
+
         continue;
       }
 
