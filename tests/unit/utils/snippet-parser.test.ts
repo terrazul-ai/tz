@@ -84,24 +84,6 @@ describe('snippet parser', () => {
     expect(snippet.options.json).toBe(true);
   });
 
-  it('parses schema option as string path', () => {
-    const tpl = "{{ askAgent('Prompt', { json: true, schema: './schemas/summary.schema.js' }) }}";
-    const [snippet] = parseSnippets(tpl);
-    if (snippet.type !== 'askAgent') throw new Error('expected askAgent snippet');
-    expect(snippet.options.schema).toEqual({ file: './schemas/summary.schema.js' });
-  });
-
-  it('parses schema option as object with export name', () => {
-    const tpl =
-      "{{ askAgent('Prompt', { json: true, schema: { file: './schemas/summary.js', exportName: 'SummarySchema' } }) }}";
-    const [snippet] = parseSnippets(tpl);
-    if (snippet.type !== 'askAgent') throw new Error('expected askAgent snippet');
-    expect(snippet.options.schema).toEqual({
-      file: './schemas/summary.js',
-      exportName: 'SummarySchema',
-    });
-  });
-
   it('ignores non-snippet handlebars expressions', () => {
     const tpl = '{{project.name}} {{#if condition}}{{/if}}';
     const snippets = parseSnippets(tpl);

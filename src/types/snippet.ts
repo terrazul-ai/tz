@@ -8,15 +8,9 @@ export interface AskUserOptions {
   placeholder?: string;
 }
 
-export interface SchemaReference {
-  file: string;
-  exportName?: string;
-}
-
 export interface AskAgentOptions {
   json?: boolean;
   tool?: ToolType;
-  schema?: SchemaReference;
   safeMode?: boolean;
   timeoutMs?: number;
   systemPrompt?: string;

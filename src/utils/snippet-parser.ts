@@ -9,7 +9,6 @@ import {
   type AskAgentOptions,
   type AskUserOptions,
   type ParsedSnippet,
-  type SchemaReference,
   type SnippetPrompt,
 } from '../types/snippet.js';
 
@@ -561,10 +560,6 @@ function normalizeAskAgentOptions(raw: Record<string, unknown>): AskAgentOptions
       options.tool = value;
       continue;
     }
-    if (key === 'schema') {
-      options.schema = normalizeSchemaOption(value);
-      continue;
-    }
     if (key === 'safeMode') {
       if (typeof value !== 'boolean') {
         throw new TerrazulError(
@@ -598,37 +593,6 @@ function normalizeAskAgentOptions(raw: Record<string, unknown>): AskAgentOptions
     throw new TerrazulError(ErrorCode.INVALID_ARGUMENT, `Unsupported askAgent option '${key}'.`);
   }
   return options;
-}
-
-function normalizeSchemaOption(value: unknown): SchemaReference {
-  if (value == null) {
-    throw new TerrazulError(ErrorCode.INVALID_ARGUMENT, 'askAgent schema option cannot be null');
-  }
-  if (typeof value === 'string') {
-    return { file: value };
-  }
-  if (typeof value === 'object' && !Array.isArray(value)) {
-    const record = value as Record<string, unknown>;
-    const file = record.file;
-    if (typeof file !== 'string' || file.trim().length === 0) {
-      throw new TerrazulError(
-        ErrorCode.INVALID_ARGUMENT,
-        'askAgent schema option requires a "file" string',
-      );
-    }
-    const exportName = record.exportName;
-    if (exportName !== undefined && typeof exportName !== 'string') {
-      throw new TerrazulError(
-        ErrorCode.INVALID_ARGUMENT,
-        'askAgent schema exportName must be a string when provided',
-      );
-    }
-    return { file, exportName };
-  }
-  throw new TerrazulError(
-    ErrorCode.INVALID_ARGUMENT,
-    'askAgent schema option must be a string path or object { file, exportName? }',
-  );
 }
 
 function isKnownTool(value: string): value is ToolType {
