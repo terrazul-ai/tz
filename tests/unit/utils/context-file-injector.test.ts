@@ -54,7 +54,7 @@ describe('utils/context-file-injector', () => {
       expect(content).toContain('<!-- terrazul:end -->');
     });
 
-    it('injects package context into existing file with content', async () => {
+    it('injects package context at beginning of existing file', async () => {
       const filePath = path.join(projectRoot, 'CLAUDE.md');
       await write(filePath, '# Existing Content\n\nSome text here.');
 
@@ -75,6 +75,16 @@ describe('utils/context-file-injector', () => {
       const content = await fs.readFile(filePath, 'utf8');
       expect(content).toContain('# Existing Content');
       expect(content).toContain('@agent_modules/@test/pkg1/CLAUDE.md');
+
+      // Verify context block is at the BEGINNING
+      expect(content.startsWith('<!-- terrazul:begin -->')).toBe(true);
+
+      // Verify existing content comes AFTER the context block
+      const beginIndex = content.indexOf('<!-- terrazul:begin -->');
+      const endIndex = content.indexOf('<!-- terrazul:end -->');
+      const existingIndex = content.indexOf('# Existing Content');
+      expect(beginIndex).toBeLessThan(existingIndex);
+      expect(endIndex).toBeLessThan(existingIndex);
     });
 
     it('is idempotent - does not modify if already injected', async () => {
@@ -349,6 +359,107 @@ describe('utils/context-file-injector', () => {
       // Should have markers but no @-mentions
       expect(content).toContain('<!-- terrazul:begin -->');
       expect(content).not.toContain('@agent_modules/@test/pkg1');
+    });
+
+    it('ignores markers embedded in documentation (not at file start)', async () => {
+      const filePath = path.join(projectRoot, 'CLAUDE.md');
+      // Create file with markers in documentation, not at the start
+      const docContent = `# My Documentation
+
+This is some documentation about context injection.
+
+**Context Injection**:
+- Uses HTML comment markers (\`<!-- terrazul:begin -->
+<!-- Terrazul package context - auto-managed, do not edit -->
+@agent_modules/@old/pkg/CLAUDE.md
+<!-- terrazul:end -->\`) for idempotent injection
+
+## More Content
+
+Some more documentation here.`;
+      await write(filePath, docContent);
+
+      const packageFiles = new Map([
+        ['@test/pkg1', [path.join(projectRoot, 'agent_modules/@test/pkg1/CLAUDE.md')]],
+      ]);
+      const packages: PackageInfo[] = [
+        {
+          name: '@test/pkg1',
+          version: '1.0.0',
+          root: path.join(projectRoot, 'agent_modules/@test/pkg1'),
+        },
+      ];
+
+      const result = await injectPackageContext(filePath, projectRoot, packageFiles, packages);
+
+      expect(result.modified).toBe(true);
+      const content = await fs.readFile(filePath, 'utf8');
+
+      // Should inject at the START of the file
+      expect(content.startsWith('<!-- terrazul:begin -->')).toBe(true);
+
+      // Should have our new package reference at the top
+      const firstBeginIndex = content.indexOf('<!-- terrazul:begin -->');
+      const firstEndIndex = content.indexOf('<!-- terrazul:end -->');
+      const newPkgIndex = content.indexOf('@agent_modules/@test/pkg1/CLAUDE.md');
+
+      expect(firstBeginIndex).toBe(0);
+      expect(newPkgIndex).toBeGreaterThan(firstBeginIndex);
+      expect(newPkgIndex).toBeLessThan(firstEndIndex);
+
+      // Should preserve the documentation markers (they appear later in file)
+      expect(content).toContain('Uses HTML comment markers');
+      expect(content).toContain('@agent_modules/@old/pkg/CLAUDE.md');
+
+      // The old example markers should be AFTER our injected block
+      const docMarkersIndex = content.indexOf('Uses HTML comment markers');
+      expect(docMarkersIndex).toBeGreaterThan(firstEndIndex);
+    });
+
+    it('hasPackageContext returns false when markers are not at file start', async () => {
+      const filePath = path.join(projectRoot, 'CLAUDE.md');
+      // Markers in middle of file, not at start
+      const docContent = `# Documentation
+
+Some docs here.
+
+<!-- terrazul:begin -->
+<!-- Terrazul package context - auto-managed, do not edit -->
+@agent_modules/@old/pkg/CLAUDE.md
+<!-- terrazul:end -->
+
+More content.`;
+      await write(filePath, docContent);
+
+      const result = await hasPackageContext(filePath);
+
+      // Should return false because markers are not at the start
+      expect(result).toBe(false);
+    });
+
+    it('removePackageContext ignores markers not at file start', async () => {
+      const filePath = path.join(projectRoot, 'CLAUDE.md');
+      // Markers in middle of file, not at start
+      const docContent = `# Documentation
+
+Some docs here.
+
+<!-- terrazul:begin -->
+<!-- Terrazul package context - auto-managed, do not edit -->
+@agent_modules/@old/pkg/CLAUDE.md
+<!-- terrazul:end -->
+
+More content.`;
+      await write(filePath, docContent);
+
+      const result = await removePackageContext(filePath);
+
+      // Should return false - nothing to remove (markers not at start)
+      expect(result.modified).toBe(false);
+
+      // Content should be unchanged
+      const content = await fs.readFile(filePath, 'utf8');
+      expect(content).toBe(docContent);
     });
   });
 });
