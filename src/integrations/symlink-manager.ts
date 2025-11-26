@@ -148,11 +148,13 @@ export async function createSymlinks(options: CreateSymlinksOptions): Promise<{
     const relSymlinkPath = path.relative(projectRoot, symlinkPath);
     if (
       registry.symlinks[relSymlinkPath]?.source === source &&
-      registry.symlinks[relSymlinkPath]?.tool === activeTool
+      registry.symlinks[relSymlinkPath]?.tool === activeTool && // Verify symlink actually exists on disk before skipping
+      exists(symlinkPath)
     ) {
       skipped.push(symlinkPath);
       continue;
     }
+    // Registry entry exists but symlink is missing - will recreate below
 
     // Create symlink
     if (dryRun) {
