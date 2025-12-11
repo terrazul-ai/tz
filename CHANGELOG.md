@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.19.0](https://github.com/terrazul-ai/tz/compare/v0.18.0...v0.19.0) (2025-12-09)
+
+
+### Features
+
+* Only print the "hang tight" message before askAgent processing ([#67](https://github.com/terrazul-ai/tz/issues/67)) ([db1f434](https://github.com/terrazul-ai/tz/commit/db1f43479f426a52deae2c3849a5fed2894f874d))
+
+
+### Bug Fixes
+
+* Adds symlinks if they were accidentally deleted ([#71](https://github.com/terrazul-ai/tz/issues/71)) ([59c808c](https://github.com/terrazul-ai/tz/commit/59c808c803b08c38368827fd7eef5015ca976381))
+* Puts context injection at beggining of CLAUDE.md ([#72](https://github.com/terrazul-ai/tz/issues/72)) ([f78720f](https://github.com/terrazul-ai/tz/commit/f78720fbbb90f4c4d0b5d0c61bca9162c798e558))
+* Recreate symlinks when deleted from disk but still in registry ([#69](https://github.com/terrazul-ai/tz/issues/69)) ([21d3f3a](https://github.com/terrazul-ai/tz/commit/21d3f3ab7d6634865808a944a554384468663cf6))
+* Recreate symlinks when deleted from disk but still in registry ([#73](https://github.com/terrazul-ai/tz/issues/73)) ([3c79beb](https://github.com/terrazul-ai/tz/commit/3c79beb95095c23db4c94a7ff5a82b55370714cb))
+* Removes schema checking using zod ([#70](https://github.com/terrazul-ai/tz/issues/70)) ([dd82f7f](https://github.com/terrazul-ai/tz/commit/dd82f7f0696b88288cc630575dfa323d3109ed60))
+
 ## [0.18.0](https://github.com/terrazul-ai/tz/compare/v0.17.0...v0.18.0) (2025-11-22)
 
 
