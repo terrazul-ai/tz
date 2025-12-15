@@ -171,7 +171,7 @@ export const hasTZMdReference = hasPackageContext;
 /**
  * Generate the package context block with direct @-mentions.
  * Filters to only include CLAUDE.md and AGENTS.md files (context files).
- * Excludes MCP configs, agents/, commands/, hooks/, skills/ files.
+ * Excludes MCP configs, agents/, commands/, skills/ files.
  */
 function generateContextBlock(
   projectRoot: string,
@@ -188,7 +188,7 @@ function generateContextBlock(
     if (!files || files.length === 0) continue;
 
     // Filter to only include context files (CLAUDE.md, AGENTS.md)
-    // Exclude MCP configs, agents/, commands/, hooks/, skills/ directories
+    // Exclude MCP configs, agents/, commands/, skills/ directories
     const contextFiles = files.filter((file) => {
       const basename = path.basename(file);
 

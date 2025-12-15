@@ -58,6 +58,128 @@ export interface CreateSymlinksOptions {
 }
 
 /**
+ * Find the skill root directory from a source file path.
+ * Skills are always immediate children of the skills/ directory.
+ * Handles nested subdirectories (resources/, templates/, etc.)
+ *
+ * @param sourcePath - Path to a file within a skill directory
+ * @returns Skill info { skillDir, skillName } or null if invalid
+ *
+ * @example
+ * // Direct file in skill root
+ * findSkillRootDirectory('agent_modules/@pkg/claude/skills/my-skill/SKILL.md')
+ * // => { skillDir: 'agent_modules/@pkg/claude/skills/my-skill', skillName: 'my-skill' }
+ *
+ * // Nested file in subdirectory
+ * findSkillRootDirectory('agent_modules/@pkg/claude/skills/my-skill/resources/ref.md')
+ * // => { skillDir: 'agent_modules/@pkg/claude/skills/my-skill', skillName: 'my-skill' }
+ */
+function findSkillRootDirectory(
+  sourcePath: string,
+): { skillDir: string; skillName: string } | null {
+  const pathParts = sourcePath.split(path.sep);
+  const skillsIndex = pathParts.indexOf('skills');
+
+  // Invalid: 'skills' not found, or no directory after 'skills'
+  if (skillsIndex === -1 || skillsIndex >= pathParts.length - 1) {
+    return null;
+  }
+
+  // Skill root is the immediate child of skills/
+  const skillName = pathParts[skillsIndex + 1];
+  const skillDir = pathParts.slice(0, skillsIndex + 2).join(path.sep);
+
+  return { skillDir, skillName };
+}
+
+/**
+ * Check if a symlink should be skipped (already exists and points to correct source)
+ *
+ * @param symlinkPath - Absolute path to the symlink
+ * @param sourceDir - Absolute path to the source directory/file
+ * @param activeTool - Current active tool
+ * @param projectRoot - Project root directory
+ * @param registry - Symlink registry
+ * @returns true if should skip, false if should create
+ */
+function shouldSkipSymlink(
+  symlinkPath: string,
+  sourceDir: string,
+  activeTool: ToolType,
+  projectRoot: string,
+  registry: SymlinkRegistry,
+): boolean {
+  const relSymlinkPath = path.relative(projectRoot, symlinkPath);
+  const registryEntry = registry.symlinks[relSymlinkPath];
+
+  return (
+    registryEntry !== undefined &&
+    registryEntry.source === sourceDir &&
+    registryEntry.tool === activeTool &&
+    exists(symlinkPath)
+  );
+}
+
+/**
+ * Create a skill directory symlink and update registry
+ *
+ * @returns Result object with created, skipped, or error
+ */
+async function createSkillDirectorySymlink(options: {
+  pkgName: string;
+  skillDir: string;
+  skillName: string;
+  claudeRoot: string;
+  projectRoot: string;
+  registry: SymlinkRegistry;
+  activeTool: ToolType;
+  dryRun: boolean;
+}): Promise<{
+  created?: string;
+  skipped?: string;
+  error?: { path: string; error: string };
+}> {
+  const { pkgName, skillDir, skillName, claudeRoot, projectRoot, registry, activeTool, dryRun } =
+    options;
+
+  // Generate namespaced symlink path for the directory
+  const namespacedName = generateNamespacedPath(pkgName, skillName, true);
+  const symlinkPath = path.join(claudeRoot, 'skills', namespacedName);
+
+  // Check if symlink already exists and points to same source
+  if (shouldSkipSymlink(symlinkPath, skillDir, activeTool, projectRoot, registry)) {
+    return { skipped: symlinkPath };
+  }
+
+  // Create directory symlink
+  if (dryRun) {
+    return { created: symlinkPath };
+  }
+
+  try {
+    await createSymlink(skillDir, symlinkPath);
+
+    // Update registry with skill directory as source
+    const relSymlinkPath = path.relative(projectRoot, symlinkPath);
+    registry.symlinks[relSymlinkPath] = {
+      package: pkgName,
+      source: skillDir,
+      tool: activeTool,
+      created: new Date().toISOString(),
+    };
+
+    return { created: symlinkPath };
+  } catch (error) {
+    return {
+      error: {
+        path: symlinkPath,
+        error: error instanceof Error ? error.message : String(error),
+      },
+    };
+  }
+}
+
+/**
  * Create namespaced symlinks from agent_modules to .claude/ directories
  * Uses rendered files metadata to determine which files to symlink
  * Filters out CLAUDE.md/AGENTS.md (those are @-mentioned) and MCP configs
@@ -104,8 +226,12 @@ export async function createSymlinks(options: CreateSymlinksOptions): Promise<{
     filesToProcess = filesToProcess.filter((f) => packages.includes(f.pkgName));
   }
 
-  // Directories to check for symlinkable files
-  const operationalDirs = ['agents', 'commands', 'hooks', 'skills'];
+  // Directories to check for symlinkable files (hooks excluded - not supported by Claude)
+  const operationalDirs = ['agents', 'commands', 'skills'];
+
+  // Track skill directories we've already processed to avoid duplicates
+  // Key: skillDir absolute path, Value: true (processed)
+  const processedSkillDirs = new Map<string, boolean>();
 
   for (const file of filesToProcess) {
     const { pkgName, source, isMcpConfig } = file;
@@ -140,8 +266,44 @@ export async function createSymlinks(options: CreateSymlinksOptions): Promise<{
       continue;
     }
 
+    // Special handling for skills: symlink the skill directory, not individual files
+    if (targetDirName === 'skills') {
+      // Find the skill root directory (handles nested subdirectories)
+      const skillInfo = findSkillRootDirectory(source);
+      if (!skillInfo) {
+        continue;
+      }
+
+      const { skillDir, skillName } = skillInfo;
+
+      // Skip if we've already processed this skill directory
+      if (processedSkillDirs.has(skillDir)) {
+        continue;
+      }
+      processedSkillDirs.set(skillDir, true);
+
+      // Create skill directory symlink
+      const result = await createSkillDirectorySymlink({
+        pkgName,
+        skillDir,
+        skillName,
+        claudeRoot,
+        projectRoot,
+        registry,
+        activeTool,
+        dryRun,
+      });
+
+      if (result.created) created.push(result.created);
+      if (result.skipped) skipped.push(result.skipped);
+      if (result.error) errors.push(result.error);
+
+      continue;
+    }
+
+    // For non-skill files (agents, commands): create file symlinks as before
     // Generate namespaced symlink path
-    const namespacedName = generateNamespacedPath(pkgName, basename);
+    const namespacedName = generateNamespacedPath(pkgName, basename, false);
     const symlinkPath = path.join(claudeRoot, targetDirName, namespacedName);
 
     // Check if symlink already exists and points to same source
@@ -251,15 +413,25 @@ export async function removeSymlinks(
 }
 
 /**
- * Generate a namespaced path for a file from a package
- * Example: @scope/pkg + "agents/foo.md" => "@scope-pkg-foo.md"
+ * Generate a namespaced path for a file or directory from a package
+ * Example for files: @scope/pkg + "foo.md" => "@scope-pkg-foo.md"
+ * Example for skill dirs: @scope/pkg + "analyze-logs" => "@scope-pkg-analyze-logs"
  */
-function generateNamespacedPath(pkgName: string, relativePath: string): string {
+function generateNamespacedPath(
+  pkgName: string,
+  nameOrPath: string,
+  isSkillDir: boolean = false,
+): string {
   // Normalize package name: @scope/pkg => @scope-pkg
   const normalizedPkg = pkgName.replaceAll('/', '-');
 
-  // Get filename without extension
-  const basename = path.basename(relativePath);
+  if (isSkillDir) {
+    // For skill directories, use the directory name without extension
+    return `${normalizedPkg}-${nameOrPath}`;
+  }
+
+  // For files, get the basename and preserve the extension
+  const basename = path.basename(nameOrPath);
 
   // Combine: @scope-pkg-filename.ext
   return `${normalizedPkg}-${basename}`;
