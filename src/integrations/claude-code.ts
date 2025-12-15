@@ -172,8 +172,8 @@ export async function spawnClaudeCode(
   return new Promise((resolve, reject) => {
     const args = ['--mcp-config', mcpConfigPath, '--strict-mcp-config'];
 
-    // Add model flag if specified
-    if (model) {
+    // Add model flag if specified (skip 'default' to use user's environment preference)
+    if (model && model !== 'default') {
       args.push('--model', model);
     }
 

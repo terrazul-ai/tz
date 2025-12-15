@@ -1,3 +1,5 @@
 docs/extract-install-publish/overall-plan.md
 **/*.hbs
+**/*.md
 CHANGELOG.md
+pnpm-lock.yaml
