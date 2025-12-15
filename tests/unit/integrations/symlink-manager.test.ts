@@ -672,6 +672,89 @@ describe('symlink-manager', () => {
           .catch(() => false);
         expect(existsAfter).toBe(false);
       });
+
+      it('should handle skills with nested subdirectories correctly', async () => {
+        const pkgRoot = path.join(agentModulesDir, '@user', 'pkg');
+        const skillDir = path.join(pkgRoot, 'claude', 'skills', 'my-skill');
+
+        // Create nested subdirectories (resources/, templates/) as recommended by Claude docs
+        const resourcesDir = path.join(skillDir, 'resources');
+        const templatesDir = path.join(skillDir, 'templates');
+        await fs.mkdir(resourcesDir, { recursive: true });
+        await fs.mkdir(templatesDir, { recursive: true });
+
+        // Create files in skill root and nested subdirectories
+        await fs.writeFile(path.join(skillDir, 'SKILL.md'), '# Skill');
+        await fs.writeFile(path.join(resourcesDir, 'reference.md'), '# Reference');
+        await fs.writeFile(path.join(resourcesDir, 'examples.md'), '# Examples');
+        await fs.writeFile(path.join(templatesDir, 'template.html'), '<html></html>');
+
+        const renderedFiles = [
+          {
+            pkgName: '@user/pkg',
+            source: path.join(skillDir, 'SKILL.md'),
+            tool: 'claude' as const,
+            isMcpConfig: false,
+          },
+          {
+            pkgName: '@user/pkg',
+            source: path.join(resourcesDir, 'reference.md'),
+            tool: 'claude' as const,
+            isMcpConfig: false,
+          },
+          {
+            pkgName: '@user/pkg',
+            source: path.join(resourcesDir, 'examples.md'),
+            tool: 'claude' as const,
+            isMcpConfig: false,
+          },
+          {
+            pkgName: '@user/pkg',
+            source: path.join(templatesDir, 'template.html'),
+            tool: 'claude' as const,
+            isMcpConfig: false,
+          },
+        ];
+
+        const result = await createSymlinks({
+          projectRoot: tmpDir,
+          packages: ['@user/pkg'],
+          renderedFiles,
+          activeTool: 'claude',
+        });
+
+        // Should create ONE directory symlink (not 4 file symlinks)
+        expect(result.created).toHaveLength(1);
+        expect(result.errors).toHaveLength(0);
+
+        // Verify symlink is at skill root level
+        const skillsSymlinks = await fs.readdir(path.join(claudeDir, 'skills'));
+        expect(skillsSymlinks).toHaveLength(1);
+        expect(skillsSymlinks[0]).toBe('@user-pkg-my-skill');
+
+        // Verify symlink is a directory and points to skill root
+        const symlinkPath = path.join(claudeDir, 'skills', '@user-pkg-my-skill');
+        const symlinkStat = await fs.lstat(symlinkPath);
+        expect(symlinkStat.isSymbolicLink()).toBe(true);
+
+        // Verify all nested files are accessible through the symlink
+        const filesInSkill = await fs.readdir(symlinkPath, { recursive: true });
+        expect(filesInSkill).toContain('SKILL.md');
+        expect(filesInSkill).toContain(path.join('resources', 'reference.md'));
+        expect(filesInSkill).toContain(path.join('resources', 'examples.md'));
+        expect(filesInSkill).toContain(path.join('templates', 'template.html'));
+
+        // Verify registry tracks skill directory (not individual files)
+        const registryPath = path.join(tmpDir, '.terrazul', 'symlinks.json');
+        const registryContent = await fs.readFile(registryPath, 'utf8');
+        const registry = JSON.parse(registryContent);
+
+        const symlinkKey = '.claude/skills/@user-pkg-my-skill';
+        expect(registry.symlinks[symlinkKey]).toBeDefined();
+        expect(registry.symlinks[symlinkKey].package).toBe('@user/pkg');
+        expect(registry.symlinks[symlinkKey].source).toBe(skillDir);
+        expect(registry.symlinks[symlinkKey].tool).toBe('claude');
+      });
     });
   });
 
