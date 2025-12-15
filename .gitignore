@@ -30,3 +30,7 @@ agent_modules/
 .tmp-package/
 .tmp-project/
 .tz-backup/
+
+# Terrazul
+.claude
+.terrazul

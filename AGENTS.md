@@ -1,3 +1,10 @@
+<!-- terrazul:begin -->
+<!-- Terrazul package context - auto-managed, do not edit -->
+
+@agent_modules/@leourbina/general-coder/CLAUDE.md
+
+<!-- terrazul:end -->
+
 # Terrazul CLI — `agents.md`
 
 > A living guide to the repo, its goals, architecture, libraries, testing strategy, and how to build and ship high‑quality code for the Terrazul CLI.

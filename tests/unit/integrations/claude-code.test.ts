@@ -1,8 +1,10 @@
+import { spawn } from 'node:child_process';
+import { EventEmitter } from 'node:events';
 import { promises as fs } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   aggregateMCPConfigs,
@@ -11,6 +13,26 @@ import {
   cleanupMCPConfig,
   spawnClaudeCode,
 } from '../../../src/integrations/claude-code.js';
+
+import type { ChildProcess } from 'node:child_process';
+
+vi.mock('node:child_process', async (importOriginal) => {
+  const actual = await importOriginal();
+  return {
+    ...actual,
+    spawn: vi.fn(),
+  };
+});
+
+/** Helper to create a mock ChildProcess for spawn tests */
+function createMockChildProcess(exitCode = 0): ChildProcess {
+  // EventEmitter is required here because ChildProcess extends it (not EventTarget)
+  // eslint-disable-next-line unicorn/prefer-event-target
+  const emitter = new EventEmitter() as ChildProcess;
+  // Simulate async exit
+  setTimeout(() => emitter.emit('exit', exitCode), 10);
+  return emitter;
+}
 
 describe('claude-code integration', () => {
   let tmpDir: string;
@@ -355,6 +377,12 @@ cli_version = "0.1.0"
   });
 
   describe('spawnClaudeCode', () => {
+    const mockSpawn = vi.mocked(spawn);
+
+    beforeEach(() => {
+      mockSpawn.mockReset();
+    });
+
     it('accepts model parameter in function signature', () => {
       // Type-level test: this compiles if the signature is correct
       // Verify the function can be called with the model parameter
@@ -371,6 +399,69 @@ cli_version = "0.1.0"
       // This will cause a type error if the signature doesn't match
       const _typeCheck: ExpectedSignature = spawnClaudeCode;
       expect(_typeCheck).toBe(spawnClaudeCode);
+    });
+
+    it('includes --model flag when model is specified', async () => {
+      mockSpawn.mockReturnValue(createMockChildProcess());
+
+      await spawnClaudeCode('/tmp/mcp.json', [], '/tmp', 'opus');
+
+      expect(mockSpawn).toHaveBeenCalledOnce();
+      const args = mockSpawn.mock.calls[0]?.[1] as string[];
+      expect(args).toContain('--model');
+      expect(args).toContain('opus');
+    });
+
+    it('skips --model flag when model is undefined', async () => {
+      mockSpawn.mockReturnValue(createMockChildProcess());
+
+      await spawnClaudeCode('/tmp/mcp.json', [], '/tmp');
+
+      expect(mockSpawn).toHaveBeenCalledOnce();
+      const args = mockSpawn.mock.calls[0]?.[1] as string[];
+      expect(args).not.toContain('--model');
+    });
+
+    it('skips --model flag when model is "default"', async () => {
+      mockSpawn.mockReturnValue(createMockChildProcess());
+
+      await spawnClaudeCode('/tmp/mcp.json', [], '/tmp', 'default');
+
+      expect(mockSpawn).toHaveBeenCalledOnce();
+      const args = mockSpawn.mock.calls[0]?.[1] as string[];
+      expect(args).not.toContain('--model');
+      expect(args).not.toContain('default');
+    });
+
+    it('includes --mcp-config and --strict-mcp-config flags', async () => {
+      mockSpawn.mockReturnValue(createMockChildProcess());
+
+      await spawnClaudeCode('/tmp/mcp.json');
+
+      expect(mockSpawn).toHaveBeenCalledOnce();
+      const args = mockSpawn.mock.calls[0]?.[1] as string[];
+      expect(args).toContain('--mcp-config');
+      expect(args).toContain('/tmp/mcp.json');
+      expect(args).toContain('--strict-mcp-config');
+    });
+
+    it('passes additional args', async () => {
+      mockSpawn.mockReturnValue(createMockChildProcess());
+
+      await spawnClaudeCode('/tmp/mcp.json', ['--verbose', '--debug']);
+
+      expect(mockSpawn).toHaveBeenCalledOnce();
+      const args = mockSpawn.mock.calls[0]?.[1] as string[];
+      expect(args).toContain('--verbose');
+      expect(args).toContain('--debug');
+    });
+
+    it('returns exit code from spawned process', async () => {
+      mockSpawn.mockReturnValue(createMockChildProcess(42));
+
+      const exitCode = await spawnClaudeCode('/tmp/mcp.json');
+
+      expect(exitCode).toBe(42);
     });
   });
 });
