@@ -71,7 +71,7 @@ async function injectContext(
 }
 
 /**
- * Create symlinks for operational files (agents/, commands/, hooks/, skills/)
+ * Create symlinks for operational files (agents/, commands/, skills/)
  */
 async function createPackageSymlinks(
   projectRoot: string,

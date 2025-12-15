@@ -104,8 +104,12 @@ export async function createSymlinks(options: CreateSymlinksOptions): Promise<{
     filesToProcess = filesToProcess.filter((f) => packages.includes(f.pkgName));
   }
 
-  // Directories to check for symlinkable files
-  const operationalDirs = ['agents', 'commands', 'hooks', 'skills'];
+  // Directories to check for symlinkable files (hooks excluded - not supported by Claude)
+  const operationalDirs = ['agents', 'commands', 'skills'];
+
+  // Track skill directories we've already processed to avoid duplicates
+  // Key: skillDir absolute path, Value: true (processed)
+  const processedSkillDirs = new Map<string, boolean>();
 
   for (const file of filesToProcess) {
     const { pkgName, source, isMcpConfig } = file;
@@ -140,8 +144,64 @@ export async function createSymlinks(options: CreateSymlinksOptions): Promise<{
       continue;
     }
 
+    // Special handling for skills: symlink the skill directory, not individual files
+    if (targetDirName === 'skills') {
+      // Get the skill directory (parent of the file)
+      const skillDir = path.dirname(source);
+
+      // Skip if we've already processed this skill directory
+      if (processedSkillDirs.has(skillDir)) {
+        continue;
+      }
+      processedSkillDirs.set(skillDir, true);
+
+      // Get skill directory name (e.g., "analyze-log-patterns")
+      const skillName = path.basename(skillDir);
+
+      // Generate namespaced symlink path for the directory
+      const namespacedName = generateNamespacedPath(pkgName, skillName, true);
+      const symlinkPath = path.join(claudeRoot, 'skills', namespacedName);
+
+      // Check if symlink already exists and points to same source
+      const relSymlinkPath = path.relative(projectRoot, symlinkPath);
+      if (
+        registry.symlinks[relSymlinkPath]?.source === skillDir &&
+        registry.symlinks[relSymlinkPath]?.tool === activeTool &&
+        exists(symlinkPath)
+      ) {
+        skipped.push(symlinkPath);
+        continue;
+      }
+
+      // Create directory symlink
+      if (dryRun) {
+        created.push(symlinkPath);
+      } else {
+        try {
+          await createSymlink(skillDir, symlinkPath);
+
+          // Update registry with skill directory as source
+          registry.symlinks[relSymlinkPath] = {
+            package: pkgName,
+            source: skillDir,
+            tool: activeTool,
+            created: new Date().toISOString(),
+          };
+
+          created.push(symlinkPath);
+        } catch (error) {
+          errors.push({
+            path: symlinkPath,
+            error: error instanceof Error ? error.message : String(error),
+          });
+        }
+      }
+      continue;
+    }
+
+    // For non-skill files (agents, commands): create file symlinks as before
     // Generate namespaced symlink path
-    const namespacedName = generateNamespacedPath(pkgName, basename);
+    const namespacedName = generateNamespacedPath(pkgName, basename, false);
     const symlinkPath = path.join(claudeRoot, targetDirName, namespacedName);
 
     // Check if symlink already exists and points to same source
@@ -251,15 +311,25 @@ export async function removeSymlinks(
 }
 
 /**
- * Generate a namespaced path for a file from a package
- * Example: @scope/pkg + "agents/foo.md" => "@scope-pkg-foo.md"
+ * Generate a namespaced path for a file or directory from a package
+ * Example for files: @scope/pkg + "foo.md" => "@scope-pkg-foo.md"
+ * Example for skill dirs: @scope/pkg + "analyze-logs" => "@scope-pkg-analyze-logs"
  */
-function generateNamespacedPath(pkgName: string, relativePath: string): string {
+function generateNamespacedPath(
+  pkgName: string,
+  nameOrPath: string,
+  isSkillDir: boolean = false,
+): string {
   // Normalize package name: @scope/pkg => @scope-pkg
   const normalizedPkg = pkgName.replaceAll('/', '-');
 
-  // Get filename without extension
-  const basename = path.basename(relativePath);
+  if (isSkillDir) {
+    // For skill directories, use the directory name without extension
+    return `${normalizedPkg}-${nameOrPath}`;
+  }
+
+  // For files, get the basename and preserve the extension
+  const basename = path.basename(nameOrPath);
 
   // Combine: @scope-pkg-filename.ext
   return `${normalizedPkg}-${basename}`;

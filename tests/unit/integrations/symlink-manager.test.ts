@@ -334,25 +334,25 @@ describe('symlink-manager', () => {
     });
 
     describe('all operational directories', () => {
-      it('should create symlinks for agents/, commands/, hooks/, skills/', async () => {
+      it('should create symlinks for agents/, commands/, skills/ (not hooks)', async () => {
         const pkgRoot = path.join(agentModulesDir, '@user', 'pkg');
         const claudeSubdir = path.join(pkgRoot, 'claude');
 
-        // Create all operational directories
+        // Create operational directories (hooks excluded - not supported by Claude)
         const agentsDir = path.join(claudeSubdir, 'agents');
         const commandsDir = path.join(claudeSubdir, 'commands');
-        const hooksDir = path.join(claudeSubdir, 'hooks');
-        const skillsDir = path.join(claudeSubdir, 'skills');
+        const skillsDir = path.join(claudeSubdir, 'skills', 'my-skill');
 
         await fs.mkdir(agentsDir, { recursive: true });
         await fs.mkdir(commandsDir, { recursive: true });
-        await fs.mkdir(hooksDir, { recursive: true });
         await fs.mkdir(skillsDir, { recursive: true });
 
         await fs.writeFile(path.join(agentsDir, 'agent.md'), '# Agent');
         await fs.writeFile(path.join(commandsDir, 'cmd.md'), '# Command');
-        await fs.writeFile(path.join(hooksDir, 'hook.md'), '# Hook');
-        await fs.writeFile(path.join(skillsDir, 'skill.md'), '# Skill');
+        // Skills have directory structure with multiple files
+        await fs.writeFile(path.join(skillsDir, 'SKILL.md'), '# Skill');
+        await fs.writeFile(path.join(skillsDir, 'examples.md'), '# Examples');
+        await fs.writeFile(path.join(skillsDir, 'reference.md'), '# Reference');
 
         const renderedFiles = [
           {
@@ -367,15 +367,22 @@ describe('symlink-manager', () => {
             tool: 'claude' as const,
             isMcpConfig: false,
           },
+          // Skill files - all from same skill directory
           {
             pkgName: '@user/pkg',
-            source: path.join(hooksDir, 'hook.md'),
+            source: path.join(skillsDir, 'SKILL.md'),
             tool: 'claude' as const,
             isMcpConfig: false,
           },
           {
             pkgName: '@user/pkg',
-            source: path.join(skillsDir, 'skill.md'),
+            source: path.join(skillsDir, 'examples.md'),
+            tool: 'claude' as const,
+            isMcpConfig: false,
+          },
+          {
+            pkgName: '@user/pkg',
+            source: path.join(skillsDir, 'reference.md'),
             tool: 'claude' as const,
             isMcpConfig: false,
           },
@@ -388,18 +395,282 @@ describe('symlink-manager', () => {
           activeTool: 'claude',
         });
 
-        expect(result.created).toHaveLength(4);
+        // 2 file symlinks (agent, command) + 1 directory symlink (skill)
+        expect(result.created).toHaveLength(3);
 
         // Verify symlinks in each directory
         const agentsSymlinks = await fs.readdir(path.join(claudeDir, 'agents'));
         const commandsSymlinks = await fs.readdir(path.join(claudeDir, 'commands'));
-        const hooksSymlinks = await fs.readdir(path.join(claudeDir, 'hooks'));
         const skillsSymlinks = await fs.readdir(path.join(claudeDir, 'skills'));
 
         expect(agentsSymlinks).toContain('@user-pkg-agent.md');
         expect(commandsSymlinks).toContain('@user-pkg-cmd.md');
-        expect(hooksSymlinks).toContain('@user-pkg-hook.md');
-        expect(skillsSymlinks).toContain('@user-pkg-skill.md');
+        // Skills should be directory symlinks, not individual files
+        expect(skillsSymlinks).toContain('@user-pkg-my-skill');
+        expect(skillsSymlinks).not.toContain('@user-pkg-SKILL.md');
+        expect(skillsSymlinks).not.toContain('@user-pkg-examples.md');
+        expect(skillsSymlinks).not.toContain('@user-pkg-reference.md');
+      });
+
+      it('should NOT create symlinks for hooks/ directory', async () => {
+        const pkgRoot = path.join(agentModulesDir, '@user', 'pkg');
+        const claudeSubdir = path.join(pkgRoot, 'claude');
+
+        // Create hooks directory
+        const hooksDir = path.join(claudeSubdir, 'hooks');
+        await fs.mkdir(hooksDir, { recursive: true });
+        await fs.writeFile(path.join(hooksDir, 'hook.md'), '# Hook');
+
+        const renderedFiles = [
+          {
+            pkgName: '@user/pkg',
+            source: path.join(hooksDir, 'hook.md'),
+            tool: 'claude' as const,
+            isMcpConfig: false,
+          },
+        ];
+
+        const result = await createSymlinks({
+          projectRoot: tmpDir,
+          packages: ['@user/pkg'],
+          renderedFiles,
+          activeTool: 'claude',
+        });
+
+        // Hooks should not be symlinked
+        expect(result.created).toHaveLength(0);
+      });
+    });
+
+    describe('skill directory symlinks', () => {
+      it('should create directory symlink for skill instead of individual files', async () => {
+        const pkgRoot = path.join(agentModulesDir, '@leourbina', 'gcloud-log-analyzer');
+        const skillDir = path.join(pkgRoot, 'claude', 'skills', 'analyze-log-patterns');
+        await fs.mkdir(skillDir, { recursive: true });
+
+        // Create skill files
+        await fs.writeFile(path.join(skillDir, 'SKILL.md'), '# Skill');
+        await fs.writeFile(path.join(skillDir, 'examples.md'), '# Examples');
+        await fs.writeFile(path.join(skillDir, 'reference.md'), '# Reference');
+
+        const renderedFiles = [
+          {
+            pkgName: '@leourbina/gcloud-log-analyzer',
+            source: path.join(skillDir, 'SKILL.md'),
+            tool: 'claude' as const,
+            isMcpConfig: false,
+          },
+          {
+            pkgName: '@leourbina/gcloud-log-analyzer',
+            source: path.join(skillDir, 'examples.md'),
+            tool: 'claude' as const,
+            isMcpConfig: false,
+          },
+          {
+            pkgName: '@leourbina/gcloud-log-analyzer',
+            source: path.join(skillDir, 'reference.md'),
+            tool: 'claude' as const,
+            isMcpConfig: false,
+          },
+        ];
+
+        const result = await createSymlinks({
+          projectRoot: tmpDir,
+          packages: ['@leourbina/gcloud-log-analyzer'],
+          renderedFiles,
+          activeTool: 'claude',
+        });
+
+        // Should create ONE directory symlink, not 3 file symlinks
+        expect(result.created).toHaveLength(1);
+
+        // Verify symlink is a directory
+        const skillsSymlinks = await fs.readdir(path.join(claudeDir, 'skills'));
+        expect(skillsSymlinks).toHaveLength(1);
+        expect(skillsSymlinks[0]).toBe('@leourbina-gcloud-log-analyzer-analyze-log-patterns');
+
+        // Verify symlink points to directory and contains all files
+        const symlinkPath = path.join(
+          claudeDir,
+          'skills',
+          '@leourbina-gcloud-log-analyzer-analyze-log-patterns',
+        );
+        const symlinkStat = await fs.lstat(symlinkPath);
+        expect(symlinkStat.isSymbolicLink()).toBe(true);
+
+        // Follow symlink and verify files
+        const filesInSkill = await fs.readdir(symlinkPath);
+        expect(filesInSkill).toContain('SKILL.md');
+        expect(filesInSkill).toContain('examples.md');
+        expect(filesInSkill).toContain('reference.md');
+      });
+
+      it('should create multiple directory symlinks for multiple skills', async () => {
+        const pkgRoot = path.join(agentModulesDir, '@leourbina', 'gcloud-log-analyzer');
+        const skillsBase = path.join(pkgRoot, 'claude', 'skills');
+
+        // Create multiple skill directories
+        const skill1Dir = path.join(skillsBase, 'analyze-log-patterns');
+        const skill2Dir = path.join(skillsBase, 'fetch-gcp-logs');
+        const skill3Dir = path.join(skillsBase, 'trace-request');
+
+        await fs.mkdir(skill1Dir, { recursive: true });
+        await fs.mkdir(skill2Dir, { recursive: true });
+        await fs.mkdir(skill3Dir, { recursive: true });
+
+        // Create files in each skill
+        for (const dir of [skill1Dir, skill2Dir, skill3Dir]) {
+          await fs.writeFile(path.join(dir, 'SKILL.md'), '# Skill');
+          await fs.writeFile(path.join(dir, 'examples.md'), '# Examples');
+        }
+
+        const renderedFiles = [
+          // Skill 1 files
+          {
+            pkgName: '@leourbina/gcloud-log-analyzer',
+            source: path.join(skill1Dir, 'SKILL.md'),
+            tool: 'claude' as const,
+            isMcpConfig: false,
+          },
+          {
+            pkgName: '@leourbina/gcloud-log-analyzer',
+            source: path.join(skill1Dir, 'examples.md'),
+            tool: 'claude' as const,
+            isMcpConfig: false,
+          },
+          // Skill 2 files
+          {
+            pkgName: '@leourbina/gcloud-log-analyzer',
+            source: path.join(skill2Dir, 'SKILL.md'),
+            tool: 'claude' as const,
+            isMcpConfig: false,
+          },
+          {
+            pkgName: '@leourbina/gcloud-log-analyzer',
+            source: path.join(skill2Dir, 'examples.md'),
+            tool: 'claude' as const,
+            isMcpConfig: false,
+          },
+          // Skill 3 files
+          {
+            pkgName: '@leourbina/gcloud-log-analyzer',
+            source: path.join(skill3Dir, 'SKILL.md'),
+            tool: 'claude' as const,
+            isMcpConfig: false,
+          },
+          {
+            pkgName: '@leourbina/gcloud-log-analyzer',
+            source: path.join(skill3Dir, 'examples.md'),
+            tool: 'claude' as const,
+            isMcpConfig: false,
+          },
+        ];
+
+        const result = await createSymlinks({
+          projectRoot: tmpDir,
+          packages: ['@leourbina/gcloud-log-analyzer'],
+          renderedFiles,
+          activeTool: 'claude',
+        });
+
+        // Should create 3 directory symlinks
+        expect(result.created).toHaveLength(3);
+
+        const skillsSymlinks = await fs.readdir(path.join(claudeDir, 'skills'));
+        expect(skillsSymlinks).toHaveLength(3);
+        expect(skillsSymlinks).toContain('@leourbina-gcloud-log-analyzer-analyze-log-patterns');
+        expect(skillsSymlinks).toContain('@leourbina-gcloud-log-analyzer-fetch-gcp-logs');
+        expect(skillsSymlinks).toContain('@leourbina-gcloud-log-analyzer-trace-request');
+      });
+
+      it('should track skill directory symlinks in registry', async () => {
+        const pkgRoot = path.join(agentModulesDir, '@user', 'pkg');
+        const skillDir = path.join(pkgRoot, 'claude', 'skills', 'my-skill');
+        await fs.mkdir(skillDir, { recursive: true });
+
+        await fs.writeFile(path.join(skillDir, 'SKILL.md'), '# Skill');
+
+        const renderedFiles = [
+          {
+            pkgName: '@user/pkg',
+            source: path.join(skillDir, 'SKILL.md'),
+            tool: 'claude' as const,
+            isMcpConfig: false,
+          },
+        ];
+
+        await createSymlinks({
+          projectRoot: tmpDir,
+          packages: ['@user/pkg'],
+          renderedFiles,
+          activeTool: 'claude',
+        });
+
+        // Read registry
+        const registryPath = path.join(tmpDir, '.terrazul', 'symlinks.json');
+        const registryContent = await fs.readFile(registryPath, 'utf8');
+        const registry = JSON.parse(registryContent);
+
+        // Check registry entry for skill directory
+        const symlinkKey = '.claude/skills/@user-pkg-my-skill';
+        expect(registry.symlinks[symlinkKey]).toBeDefined();
+        expect(registry.symlinks[symlinkKey].package).toBe('@user/pkg');
+        expect(registry.symlinks[symlinkKey].tool).toBe('claude');
+        // Source should be the skill directory, not individual file
+        expect(registry.symlinks[symlinkKey].source).toBe(skillDir);
+      });
+
+      it('should remove skill directory symlinks correctly', async () => {
+        const pkgRoot = path.join(agentModulesDir, '@user', 'pkg');
+        const skillDir = path.join(pkgRoot, 'claude', 'skills', 'my-skill');
+        await fs.mkdir(skillDir, { recursive: true });
+
+        await fs.writeFile(path.join(skillDir, 'SKILL.md'), '# Skill');
+        await fs.writeFile(path.join(skillDir, 'examples.md'), '# Examples');
+
+        const renderedFiles = [
+          {
+            pkgName: '@user/pkg',
+            source: path.join(skillDir, 'SKILL.md'),
+            tool: 'claude' as const,
+            isMcpConfig: false,
+          },
+          {
+            pkgName: '@user/pkg',
+            source: path.join(skillDir, 'examples.md'),
+            tool: 'claude' as const,
+            isMcpConfig: false,
+          },
+        ];
+
+        // Create symlinks
+        await createSymlinks({
+          projectRoot: tmpDir,
+          packages: ['@user/pkg'],
+          renderedFiles,
+          activeTool: 'claude',
+        });
+
+        // Verify symlink exists
+        const symlinkPath = path.join(claudeDir, 'skills', '@user-pkg-my-skill');
+        const existsBefore = await fs
+          .access(symlinkPath)
+          .then(() => true)
+          .catch(() => false);
+        expect(existsBefore).toBe(true);
+
+        // Remove symlinks
+        const result = await removeSymlinks(tmpDir, '@user/pkg');
+
+        expect(result.removed).toHaveLength(1);
+        expect(result.errors).toHaveLength(0);
+
+        // Verify symlink is gone
+        const existsAfter = await fs
+          .access(symlinkPath)
+          .then(() => true)
+          .catch(() => false);
+        expect(existsAfter).toBe(false);
       });
     });
   });
