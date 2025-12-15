@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.19.2](https://github.com/terrazul-ai/tz/compare/v0.19.1...v0.19.2) (2025-12-15)
+
+
+### Bug Fixes
+
+* Remove the `--model default` from Claude invocation ([#76](https://github.com/terrazul-ai/tz/issues/76)) ([12118de](https://github.com/terrazul-ai/tz/commit/12118de8375930991caa8085134fdd2b81748dcf))
+
 ## [0.19.1](https://github.com/terrazul-ai/tz/compare/v0.19.0...v0.19.1) (2025-12-15)
 
 
