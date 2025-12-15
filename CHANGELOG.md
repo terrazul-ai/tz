@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.19.1](https://github.com/terrazul-ai/tz/compare/v0.19.0...v0.19.1) (2025-12-15)
+
+
+### Bug Fixes
+
+* Fixes symlinking skill directories ([#74](https://github.com/terrazul-ai/tz/issues/74)) ([f849d47](https://github.com/terrazul-ai/tz/commit/f849d478bbfa6ee7ed27491cc884cb131a6adc72))
+
 ## [0.19.0](https://github.com/terrazul-ai/tz/compare/v0.18.0...v0.19.0) (2025-12-09)
 
 
