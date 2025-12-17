@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.20.0](https://github.com/terrazul-ai/tz/compare/v0.19.2...v0.20.0) (2025-12-17)
+
+
+### Features
+
+* Adds terrazul to setup ([#78](https://github.com/terrazul-ai/tz/issues/78)) ([4afdb2f](https://github.com/terrazul-ai/tz/commit/4afdb2f399e96aefc75e8950ed25e4f589720ea8))
+
 ## [0.19.2](https://github.com/terrazul-ai/tz/compare/v0.19.1...v0.19.2) (2025-12-15)
 
 
