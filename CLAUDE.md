@@ -1,8 +1,6 @@
 <!-- terrazul:begin -->
 <!-- Terrazul package context - auto-managed, do not edit -->
-
 @agent_modules/@leourbina/general-coder/CLAUDE.md
-
 <!-- terrazul:end -->
 
 # Terrazul CLI — `agents.md`
