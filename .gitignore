@@ -25,12 +25,12 @@ pnpm-debug.log*
 package-lock.json
 yarn.lock
 
-agent_modules/
-.tmp-home/
-.tmp-package/
-.tmp-project/
-.tz-backup/
-
 # Terrazul
 .claude
 .terrazul
+agent_modules
+.tz-backup/
+
+.tmp-home/
+.tmp-package/
+.tmp-project/
