@@ -22,6 +22,9 @@ export interface ExportEntry {
   [key: string]: unknown;
 }
 
+/** Tool types that support spawning/running (answer tools) */
+export type AnswerToolName = 'claude' | 'codex';
+
 export interface ProjectManifest {
   package?: {
     name?: string;
@@ -34,6 +37,8 @@ export interface ProjectManifest {
     keywords?: string[];
     authors?: string[];
     is_private?: boolean;
+    /** Default tool to use when running this package (overrides user config) */
+    tool?: AnswerToolName;
   };
   dependencies?: Record<string, string>;
   compatibility?: Record<string, string>;
@@ -56,6 +61,8 @@ const ExportEntrySchema = z
   })
   .catchall(z.any());
 
+const AnswerToolSchema = z.enum(['claude', 'codex']);
+
 const ManifestSchema = z.object({
   package: z
     .object({
@@ -69,6 +76,7 @@ const ManifestSchema = z.object({
       keywords: z.array(z.string()).optional(),
       authors: z.array(z.string()).optional(),
       is_private: z.boolean().optional(),
+      tool: AnswerToolSchema.optional(),
     })
     .partial()
     .optional(),
@@ -155,6 +163,11 @@ export async function readManifest(projectDir: string): Promise<ProjectManifest 
       }
     }
 
+    // Parse tool field - must be 'claude' or 'codex'
+    const rawTool = pkgObj.tool;
+    const parsedTool: AnswerToolName | undefined =
+      rawTool === 'claude' || rawTool === 'codex' ? rawTool : undefined;
+
     const manifest: ProjectManifest = {
       package: {
         name: typeof pkgObj.name === 'string' ? pkgObj.name : undefined,
@@ -167,6 +180,7 @@ export async function readManifest(projectDir: string): Promise<ProjectManifest 
         keywords: isStringArray(pkgObj.keywords) ? pkgObj.keywords : undefined,
         authors: isStringArray(pkgObj.authors) ? pkgObj.authors : undefined,
         is_private: typeof pkgObj.is_private === 'boolean' ? pkgObj.is_private : undefined,
+        tool: parsedTool,
       },
       dependencies: Object.keys(deps).length > 0 ? deps : undefined,
       compatibility: Object.keys(compat).length > 0 ? compat : undefined,

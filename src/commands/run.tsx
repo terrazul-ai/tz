@@ -13,15 +13,16 @@ import {
   aggregateMCPConfigs,
   cleanupMCPConfig,
   generateMCPConfigFile,
-  spawnClaudeCode,
 } from '../integrations/claude-code.js';
 import { createSymlinks } from '../integrations/symlink-manager.js';
+import { loadMCPConfig, spawnTool } from '../integrations/tool-spawner.js';
 import { AskAgentSpinner, type AskAgentTask } from '../ui/apply/AskAgentSpinner.js';
 import { generateAskAgentSummary } from '../utils/ask-agent-summary.js';
 import { injectPackageContext, type PackageInfo } from '../utils/context-file-injector.js';
 import { ensureDir } from '../utils/fs.js';
 import { addOrUpdateDependency, readManifest } from '../utils/manifest.js';
 import { agentModulesPath, isFilesystemPath, resolvePathSpec } from '../utils/path.js';
+import { resolveSpawnTool } from '../utils/spawn-tool-resolve.js';
 import { normalizeToolOption } from '../utils/tool-options.js';
 
 import type { SnippetProgress } from '../core/template-renderer.js';
@@ -581,37 +582,49 @@ async function prepareMCPConfig(
 }
 
 /**
- * Spawn Claude Code with MCP config or skip in non-interactive mode
+ * Spawn the resolved tool with MCP config or skip in non-interactive mode
  */
-async function spawnClaudeCodeWithConfig(
+async function spawnToolWithConfig(
   ctx: CLIContext,
   projectRoot: string,
   mcpResult: MCPConfigResult,
+  toolOverride?: 'claude' | 'codex' | 'cursor' | 'copilot',
 ): Promise<number> {
-  // Skip spawning Claude Code in non-interactive environments (tests, CI)
+  // Skip spawning tool in non-interactive environments (tests, CI)
   const skipSpawn = process.env.TZ_SKIP_SPAWN === 'true' || !process.stdout.isTTY;
 
   if (skipSpawn) {
     ctx.logger.info(
-      `Rendered templates with ${mcpResult.serverCount} MCP server(s). Skipping Claude Code launch (non-interactive).`,
+      `Rendered templates with ${mcpResult.serverCount} MCP server(s). Skipping tool launch (non-interactive).`,
     );
     return 0;
   }
 
+  // Resolve which tool to spawn using precedence: flag > project > user
+  const userConfig = await ctx.config.load();
+  const tool = await resolveSpawnTool({
+    flagOverride: toolOverride,
+    projectRoot,
+    userConfig,
+  });
+
   // Log launch message
   if (mcpResult.serverCount > 0) {
-    ctx.logger.info(`Launching Claude Code with ${mcpResult.serverCount} MCP server(s)...`);
+    ctx.logger.info(`Launching ${tool.type} with ${mcpResult.serverCount} MCP server(s)...`);
   } else {
-    ctx.logger.info('Launching Claude Code...');
+    ctx.logger.info(`Launching ${tool.type}...`);
   }
 
-  // Get model from user config
-  const userConfig = await ctx.config.load();
-  const claudeTool = userConfig.profile?.tools?.find((t) => t.type === 'claude');
-  const model = claudeTool?.model;
+  // Load MCP config content for Codex (Claude uses file path)
+  const mcpConfig = await loadMCPConfig(mcpResult.configPath);
 
-  // Spawn Claude Code with MCP config
-  const exitCode = await spawnClaudeCode(mcpResult.configPath, [], projectRoot, model);
+  // Spawn the tool with MCP config
+  const exitCode = await spawnTool({
+    tool,
+    cwd: projectRoot,
+    mcpConfig,
+    mcpConfigPath: mcpResult.configPath,
+  });
 
   return exitCode;
 }
@@ -868,9 +881,14 @@ export function registerRunCommand(
           // Prepare MCP config
           const mcpResult = await prepareMCPConfig(ctx, projectRoot, agentModulesRoot, packages);
 
-          // Spawn Claude Code (with cleanup)
+          // Spawn tool (with cleanup)
           try {
-            const exitCode = await spawnClaudeCodeWithConfig(ctx, projectRoot, mcpResult);
+            const exitCode = await spawnToolWithConfig(
+              ctx,
+              projectRoot,
+              mcpResult,
+              renderOpts.toolOverride,
+            );
             await cleanupMCPConfig(mcpResult.configPath);
             process.exitCode = exitCode;
           } catch (error) {
