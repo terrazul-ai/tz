@@ -44,7 +44,7 @@ describe('core/template-renderer', () => {
     const pkgStoreRoot = path.join(storeRoot, '@test', 'demo', '1.2.3');
     await write(
       path.join(pkgStoreRoot, 'agents.toml'),
-      `\n[package]\nname = "@test/demo"\nversion = "1.2.3"\n\n[exports.codex]\ntemplate = "templates/AGENTS.md.hbs"\n\n[exports.claude]\ntemplate = "templates/CLAUDE.md.hbs"\nsettingsLocal = "templates/claude/settings.local.json.hbs"\nsubagentsDir = "templates/claude/agents"\n\n[exports.copilot]\ntemplate = "templates/COPILOT.md.hbs"\n\n[exports.cursor]\ntemplate = "templates/cursor.rules.mdc.hbs"\n`,
+      `\n[package]\nname = "@test/demo"\nversion = "1.2.3"\n\n[exports.codex]\ntemplate = "templates/AGENTS.md.hbs"\n\n[exports.claude]\ntemplate = "templates/CLAUDE.md.hbs"\nsettingsLocal = "templates/claude/settings.local.json.hbs"\nsubagentsDir = "templates/claude/agents"\n\n[exports.gemini]\ntemplate = "templates/GEMINI.md.hbs"\n`,
     );
     await write(
       path.join(pkgStoreRoot, 'templates', 'AGENTS.md.hbs'),
@@ -59,8 +59,7 @@ describe('core/template-renderer', () => {
       path.join(pkgStoreRoot, 'templates', 'claude', 'agents', 'reviewer.md.hbs'),
       'agent for {{project.version}}',
     );
-    await write(path.join(pkgStoreRoot, 'templates', 'COPILOT.md.hbs'), 'copilot: {{pkg.version}}');
-    await write(path.join(pkgStoreRoot, 'templates', 'cursor.rules.mdc.hbs'), 'rule: {{env.USER}}');
+    await write(path.join(pkgStoreRoot, 'templates', 'GEMINI.md.hbs'), 'gemini: {{pkg.version}}');
 
     // Create empty directory in agent_modules (will contain rendered files when isolated=true)
     pkgRoot = path.join(agentModules, '@test', 'demo');
@@ -130,8 +129,7 @@ cli_version = "0.1.0"
       path.join(packageRoot, 'AGENTS.md'),
       path.join(packageRoot, 'claude', 'settings.local.json'),
       path.join(packageRoot, 'claude', 'agents', 'reviewer.md'),
-      path.join(packageRoot, 'cursor.rules.mdc'),
-      path.join(packageRoot, 'COPILOT.md'), // Template is COPILOT.md.hbs, so output is COPILOT.md
+      path.join(packageRoot, 'GEMINI.md'),
     ];
     for (const f of expected) {
       const st = await fs.stat(f).catch(() => null);

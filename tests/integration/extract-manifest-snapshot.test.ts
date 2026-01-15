@@ -21,8 +21,6 @@ describe('manifest snapshot (exports layout)', () => {
     await proj.setClaudeSettings({ env: { KEY: 'X' } });
     await proj.setClaudeMcp({ tool: { command: '/bin/echo', args: [] } });
     await proj.addClaudeAgent('agent.md', 'hello');
-    await proj.addCursorRulesFile('001.txt', 'A');
-    await proj.addCopilot('cp');
     const out = await mkdtemp('tz-extract-out');
 
     const fakeHome = await mkdtemp('tz-extract-home');

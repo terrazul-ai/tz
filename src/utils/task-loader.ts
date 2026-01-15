@@ -26,7 +26,7 @@ export interface InstalledTask {
 export interface InstalledAssets {
   pkg: string;
   root: string;
-  templates: { claude?: string; codex?: string; cursor?: string; copilot?: string };
+  templates: { claude?: string; codex?: string; gemini?: string };
 }
 
 async function readText(file: string): Promise<string> {
@@ -190,10 +190,8 @@ export async function findAssets(cwd: string): Promise<InstalledAssets[]> {
       templates.codex = exp.codex.template;
     if (exp.claude?.template && typeof exp.claude.template === 'string')
       templates.claude = exp.claude.template;
-    if (exp.cursor?.template && typeof exp.cursor.template === 'string')
-      templates.cursor = exp.cursor.template;
-    if (exp.copilot?.template && typeof exp.copilot.template === 'string')
-      templates.copilot = exp.copilot.template;
+    if (exp.gemini?.template && typeof exp.gemini.template === 'string')
+      templates.gemini = exp.gemini.template;
     if (Object.keys(templates).length > 0) {
       out.push({ pkg: p.name, root: p.root, templates });
     }

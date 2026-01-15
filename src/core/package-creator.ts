@@ -34,7 +34,7 @@ export interface CreateResult {
 const DEFAULT_VERSION = '0.0.0';
 const DEFAULT_LICENSE = 'MIT';
 const DEFAULT_SCOPE = 'local';
-const TOOL_ORDER: ToolName[] = ['claude', 'codex', 'cursor', 'copilot'];
+const TOOL_ORDER: ToolName[] = ['claude', 'codex', 'gemini'];
 
 const GITIGNORE_CONTENT = `node_modules/
 agent_modules/
@@ -56,20 +56,6 @@ const TOOL_EXPORT_TEMPLATES: Record<ToolName, { template: string; contents: stri
     contents: `# AGENTS.md
 
 <!-- Provide shared agent prompts or workflows for Codex-compatible tools. -->
-`,
-  },
-  cursor: {
-    template: 'templates/cursor.rules.mdc.hbs',
-    contents: `# Cursor Rules
-
-<!-- Define Cursor-specific rules or instructions. -->
-`,
-  },
-  copilot: {
-    template: 'templates/COPILOT.md.hbs',
-    contents: `# GitHub Copilot Instructions
-
-<!-- Provide Copilot overrides or instructions. -->
 `,
   },
   gemini: {

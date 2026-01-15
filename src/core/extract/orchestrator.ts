@@ -254,8 +254,6 @@ export async function analyzeExtractSources(options: ExtractOptions): Promise<Ex
       path.join(projectRoot, '.claude', 'mcp-servers.json'),
     ],
     claudeAgentsDir: [path.join(projectRoot, '.claude', 'agents')],
-    cursorRules: [path.join(projectRoot, '.cursor', 'rules')],
-    copilot: [path.join(projectRoot, '.github', 'copilot-instructions.md')],
   } as const;
 
   const exists: Record<keyof typeof candidates, string | null> = {
@@ -265,8 +263,6 @@ export async function analyzeExtractSources(options: ExtractOptions): Promise<Ex
     claudeSettingsLocal: null,
     claudeMcp: null,
     claudeAgentsDir: null,
-    cursorRules: null,
-    copilot: null,
   };
 
   for (const key of Object.keys(candidates) as (keyof typeof candidates)[]) {
@@ -475,70 +471,6 @@ export async function analyzeExtractSources(options: ExtractOptions): Promise<Ex
     }
   }
 
-  if (exists.cursorRules) {
-    const src = exists.cursorRules;
-    const lstRoot = await fs.lstat(src);
-    if (lstRoot.isSymbolicLink()) {
-      plan.skipped.push('cursor.rules (symlink ignored)');
-    } else {
-      const st = await fs.stat(src);
-      let content = '';
-      if (st.isFile()) {
-        content = await fs.readFile(src, 'utf8');
-      } else if (st.isDirectory()) {
-        const stack: string[] = [src];
-        const files: string[] = [];
-        while (stack.length > 0) {
-          const cur = stack.pop()!;
-          const entries = await fs.readdir(cur);
-          for (const ent of entries) {
-            const abs = path.join(cur, ent);
-            const lst = await fs.lstat(abs);
-            if (lst.isSymbolicLink()) continue;
-            if (lst.isDirectory()) {
-              stack.push(abs);
-            } else if (lst.isFile()) {
-              const ext = path.extname(ent).toLowerCase();
-              if (ext === '.txt' || ext === '.mdc') files.push(abs);
-            }
-          }
-        }
-        for (const file of stableSort(files, (p) => p)) {
-          content += `${await fs.readFile(file, 'utf8')}\n`;
-        }
-      }
-      const sanitized = sanitizeText(content, projectRoot);
-      plan.detected['cursor.rules'] = src;
-      addOutput({
-        id: 'cursor.rules:templates/cursor.rules.hbs',
-        artifactId: 'cursor.rules',
-        relativePath: 'templates/cursor.rules.hbs',
-        format: 'text',
-        data: sanitized,
-        manifestPatch: { tool: 'cursor', properties: { template: 'templates/cursor.rules.hbs' } },
-      });
-    }
-  }
-
-  if (exists.copilot) {
-    const src = exists.copilot;
-    const lst = await fs.lstat(src);
-    if (lst.isSymbolicLink()) {
-      plan.skipped.push('copilot (symlink ignored)');
-    } else {
-      const sanitized = sanitizeText(await fs.readFile(src, 'utf8'), projectRoot);
-      plan.detected['copilot'] = src;
-      addOutput({
-        id: 'copilot:templates/copilot.md.hbs',
-        artifactId: 'copilot',
-        relativePath: 'templates/copilot.md.hbs',
-        format: 'text',
-        data: sanitized,
-        manifestPatch: { tool: 'copilot', properties: { template: 'templates/copilot.md.hbs' } },
-      });
-    }
-  }
-
   const codexConfigPath =
     options.codexConfigPath ?? path.join(os.homedir(), '.codex', 'config.toml');
   const codexConfigExists = await pathExists(codexConfigPath);
@@ -637,7 +569,7 @@ export async function analyzeExtractSources(options: ExtractOptions): Promise<Ex
   if (Object.keys(plan.detected).length === 0) {
     throw new TerrazulError(
       ErrorCode.INVALID_ARGUMENT,
-      `No recognized inputs found under ${projectRoot}. Ensure at least one exists: AGENTS.md, .codex/AGENTS.md, .claude/CLAUDE.md, .claude/settings.json, .claude/mcp_servers.json, .claude/agents/**/*.md, .cursor/rules, .github/copilot-instructions.md`,
+      `No recognized inputs found under ${projectRoot}. Ensure at least one exists: AGENTS.md, .codex/AGENTS.md, .claude/CLAUDE.md, .claude/settings.json, .claude/mcp_servers.json, .claude/agents/**/*.md`,
     );
   }
 

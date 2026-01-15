@@ -15,8 +15,7 @@ const ARTIFACT_LABELS: Record<string, string> = {
   [CODEX_MCP_ARTIFACT_ID]: 'Codex • config.toml',
   [CODEX_CONFIG_ARTIFACT_ID]: 'Codex • config.toml',
   [CLAUDE_SUBAGENT_ARTIFACT_ID]: 'Claude • agents directory',
-  'cursor.rules': 'Cursor • rules',
-  copilot: 'GitHub Copilot • instructions',
+  'gemini.config': 'Gemini • GEMINI.md',
 };
 
 export interface SummaryItem {

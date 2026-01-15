@@ -28,7 +28,7 @@ export interface RenderContext {
   env: Record<string, string | undefined>;
   now: string;
   // passthrough from user config to allow destination selection and user vars later
-  files: { claude: string; codex: string; cursor: string; copilot: string };
+  files: { claude: string; codex: string; gemini: string };
 }
 
 export interface RenderItem {
@@ -443,8 +443,7 @@ export async function setupRenderConfiguration(
   const filesMap: RenderContext['files'] = {
     claude: contextFilesRaw?.claude ?? 'CLAUDE.md',
     codex: contextFilesRaw?.codex ?? 'AGENTS.md',
-    cursor: contextFilesRaw?.cursor ?? '.cursor/rules.mdc',
-    copilot: contextFilesRaw?.copilot ?? '.github/copilot-instructions.md',
+    gemini: contextFilesRaw?.gemini ?? 'GEMINI.md',
   };
 
   return { primaryTool, toolSafeMode, filesMap, profileTools };
@@ -608,9 +607,7 @@ export async function planAndRender(
   for (const p of filtered) {
     // Read manifest and templates from store path (read-only)
     const m = await readManifest(p.storePath);
-    const exp = (m?.exports ?? {}) as Partial<
-      Record<'claude' | 'codex' | 'cursor' | 'copilot' | 'gemini', ExportEntry>
-    >;
+    const exp = (m?.exports ?? {}) as Partial<Record<'claude' | 'codex' | 'gemini', ExportEntry>>;
     const toRender: Array<{
       abs: string;
       relUnderTemplates: string;
@@ -619,8 +616,6 @@ export async function planAndRender(
     }> = [];
     if (exp?.claude) toRender.push(...collectFromExports(p.storePath, 'claude', exp.claude));
     if (exp?.codex) toRender.push(...collectFromExports(p.storePath, 'codex', exp.codex));
-    if (exp?.cursor) toRender.push(...collectFromExports(p.storePath, 'cursor', exp.cursor));
-    if (exp?.copilot) toRender.push(...collectFromExports(p.storePath, 'copilot', exp.copilot));
     if (exp?.gemini) toRender.push(...collectFromExports(p.storePath, 'gemini', exp.gemini));
 
     // Deduplicate templates by absolute path to prevent rendering the same file multiple times

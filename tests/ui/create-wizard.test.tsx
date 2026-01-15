@@ -54,7 +54,7 @@ describe('CreateWizard', () => {
         automationScript={{
           description: 'My package description',
           license: 'Apache-2.0',
-          tools: ['claude', 'cursor'],
+          tools: ['claude', 'codex'],
           includeExamples: true,
           includeHooks: true,
         }}
@@ -68,7 +68,7 @@ describe('CreateWizard', () => {
     const call = execute.mock.calls[0][0] as CreateOptions;
     expect(call.description).toBe('My package description');
     expect(call.license).toBe('Apache-2.0');
-    expect(call.tools).toEqual(['claude', 'cursor']);
+    expect(call.tools).toEqual(['claude', 'codex']);
     expect(call.includeExamples).toBe(true);
     expect(call.includeHooks).toBe(true);
 

@@ -554,7 +554,7 @@ function normalizeAskAgentOptions(raw: Record<string, unknown>): AskAgentOptions
       if (typeof value !== 'string' || !isKnownTool(value)) {
         throw new TerrazulError(
           ErrorCode.INVALID_ARGUMENT,
-          "askAgent tool option must be one of 'claude', 'codex', 'cursor', 'copilot'",
+          "askAgent tool option must be one of 'claude', 'codex', 'gemini'",
         );
       }
       options.tool = value;
@@ -596,7 +596,7 @@ function normalizeAskAgentOptions(raw: Record<string, unknown>): AskAgentOptions
 }
 
 function isKnownTool(value: string): value is ToolType {
-  return value === 'claude' || value === 'codex' || value === 'cursor' || value === 'copilot';
+  return value === 'claude' || value === 'codex' || value === 'gemini';
 }
 
 function toPrompt(value: string, literalKind: LiteralKind): SnippetPrompt {

@@ -16,8 +16,6 @@ import type { ToolType } from '../types/context.js';
 export const TOOL_ROOT_DIRECTORIES: Record<ToolType, string> = {
   claude: '.claude',
   codex: '.codex',
-  cursor: '.cursor',
-  copilot: '.github',
   gemini: '.gemini',
 };
 
@@ -25,13 +23,10 @@ export const TOOL_ROOT_DIRECTORIES: Record<ToolType, string> = {
  * Operational directories supported by each tool type.
  * - Claude: agents, commands, skills
  * - Codex: skills only (Codex uses AGENTS.md for context, skills for slash commands)
- * - Cursor/Copilot: No operational directories (different conventions)
  */
 export const TOOL_OPERATIONAL_DIRS: Record<ToolType, string[]> = {
   claude: ['agents', 'commands', 'skills'],
   codex: ['skills'],
-  cursor: [],
-  copilot: [],
   gemini: [],
 };
 

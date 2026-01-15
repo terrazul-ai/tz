@@ -6,7 +6,7 @@ import { z } from 'zod';
 
 import { PackageNameSchema } from '../types/package.js';
 
-export type ToolName = 'claude' | 'codex' | 'cursor' | 'copilot' | 'gemini';
+export type ToolName = 'claude' | 'codex' | 'gemini';
 
 export interface ExportEntry {
   template?: string;
@@ -209,7 +209,7 @@ export async function validateManifest(
   const warnings: string[] = [];
   const errors: string[] = [];
 
-  const validTools: ToolName[] = ['claude', 'codex', 'cursor', 'copilot'];
+  const validTools: ToolName[] = ['claude', 'codex', 'gemini'];
   const validProps = new Set([
     'template',
     'subagentsDir',

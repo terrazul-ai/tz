@@ -92,7 +92,7 @@ describe('createPackageScaffold', () => {
       license: 'Apache-2.0',
       version: '1.2.3',
       targetDir,
-      tools: ['claude', 'codex', 'cursor', 'copilot'],
+      tools: ['claude', 'codex', 'gemini'],
       includeExamples: true,
       includeHooks: true,
       dryRun: false,
@@ -104,8 +104,7 @@ describe('createPackageScaffold', () => {
         path.join(targetDir, 'hooks'),
         path.join(targetDir, 'templates', 'CLAUDE.md.hbs'),
         path.join(targetDir, 'templates', 'AGENTS.md.hbs'),
-        path.join(targetDir, 'templates', 'cursor.rules.mdc.hbs'),
-        path.join(targetDir, 'templates', 'COPILOT.md.hbs'),
+        path.join(targetDir, 'templates', 'GEMINI.md.hbs'),
       ]),
     );
 
@@ -113,13 +112,11 @@ describe('createPackageScaffold', () => {
     expect(manifest).toContain('[compatibility]');
     expect(manifest).toMatch(/claude\s*=\s*"\*"/);
     expect(manifest).toMatch(/codex\s*=\s*"\*"/);
-    expect(manifest).toMatch(/cursor\s*=\s*"\*"/);
-    expect(manifest).toMatch(/copilot\s*=\s*"\*"/);
+    expect(manifest).toMatch(/gemini\s*=\s*"\*"/);
     expect(manifest).toContain('[exports.claude]');
     expect(manifest).toContain('template = "templates/CLAUDE.md.hbs"');
     expect(manifest).toContain('[exports.codex]');
-    expect(manifest).toContain('[exports.cursor]');
-    expect(manifest).toContain('[exports.copilot]');
+    expect(manifest).toContain('[exports.gemini]');
 
     const readme = await fs.readFile(path.join(targetDir, 'README.md'), 'utf8');
     expect(readme).toContain('# @demo/agents-pack');
@@ -135,7 +132,7 @@ describe('createPackageScaffold', () => {
       license: 'MIT',
       version: '0.0.1',
       targetDir,
-      tools: ['cursor'],
+      tools: ['gemini'],
       includeExamples: false,
       includeHooks: false,
       dryRun: true,
@@ -147,7 +144,7 @@ describe('createPackageScaffold', () => {
         path.join(targetDir, 'agents.toml'),
         path.join(targetDir, 'README.md'),
         path.join(targetDir, '.gitignore'),
-        path.join(targetDir, 'templates', 'cursor.rules.mdc.hbs'),
+        path.join(targetDir, 'templates', 'GEMINI.md.hbs'),
       ]),
     );
 
@@ -194,7 +191,7 @@ describe('helper utilities', () => {
       license: 'MIT',
       version: '0.0.0',
       targetDir: '/tmp/demo',
-      tools: ['claude', 'cursor'],
+      tools: ['claude', 'codex'],
       includeExamples: false,
       includeHooks: false,
       dryRun: false,
@@ -203,9 +200,9 @@ describe('helper utilities', () => {
     expect(manifest).toContain('name = "@demo/pkg"');
     expect(manifest).toContain('[compatibility]');
     expect(manifest).toMatch(/claude\s*=\s*"\*"/);
-    expect(manifest).toMatch(/cursor\s*=\s*"\*"/);
+    expect(manifest).toMatch(/codex\s*=\s*"\*"/);
     expect(manifest).toContain('[exports.claude]');
-    expect(manifest).toContain('[exports.cursor]');
+    expect(manifest).toContain('[exports.codex]');
   });
 
   it('derives default package names from profile usernames and cwd', async () => {

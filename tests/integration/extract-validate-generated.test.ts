@@ -20,8 +20,6 @@ describe('validate generated package', () => {
     await proj.setClaudeSettings({ env: { A: 'x' } });
     await proj.setClaudeMcp({ tool: { command: '/bin/echo', args: [] } });
     await proj.addClaudeAgent('team/dev.md', 'dev');
-    await proj.addCursorRulesFile('a.txt', 'A');
-    await proj.addCopilot('copilot');
     const out = await mkdtemp('tz-extract-out');
 
     await run('node', [

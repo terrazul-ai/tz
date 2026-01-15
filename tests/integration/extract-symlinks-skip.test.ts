@@ -25,7 +25,7 @@ async function trySymlink(
 }
 
 describe('tz extract skips symlinks in inputs', () => {
-  it('does not copy symlinked agent files and ignores symlinks under .cursor/rules dir', async () => {
+  it('does not copy symlinked agent files', async () => {
     const cli = await ensureBuilt();
     const proj = await createTempProject();
     const out = await fs.mkdtemp(path.join(os.tmpdir(), 'tz-ex-out-'));
@@ -40,14 +40,6 @@ describe('tz extract skips symlinks in inputs', () => {
     const linkAgent = path.join(agentsDir, 'link.md');
     await fs.writeFile(realAgent, '# real', 'utf8');
     const canLinkAgents = await trySymlink('real.md', linkAgent, 'file');
-
-    // .cursor/rules directory with a real file and a symlink to it
-    const rulesDir = path.join(proj.root, '.cursor', 'rules');
-    await fs.mkdir(rulesDir, { recursive: true });
-    const realRule = path.join(rulesDir, 'a.txt');
-    await fs.writeFile(realRule, 'ALPHA', 'utf8');
-    const linkRule = path.join(rulesDir, 'b.txt');
-    const canLinkRules = await trySymlink('a.txt', linkRule, 'file');
 
     await run('node', [
       cli,
@@ -68,14 +60,6 @@ describe('tz extract skips symlinks in inputs', () => {
       await expect(
         fs.stat(path.join(out, 'templates', 'claude', 'agents', 'link.md.hbs')),
       ).rejects.toBeTruthy();
-    }
-
-    // Cursor rules should include content from real file only once; symlinked file ignored
-    const rulesOut = await fs.readFile(path.join(out, 'templates', 'cursor.rules.hbs'), 'utf8');
-    // When symlink creation succeeded, ensure content not duplicated
-    if (canLinkRules) {
-      const lines = rulesOut.trim().split(/\n+/);
-      expect(lines).toEqual(['ALPHA']);
     }
   });
 });

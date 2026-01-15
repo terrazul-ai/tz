@@ -356,8 +356,7 @@ describe('template-renderer helpers', () => {
       expect(result.filesMap).toEqual({
         claude: 'CLAUDE.md',
         codex: 'AGENTS.md',
-        cursor: '.cursor/rules.mdc',
-        copilot: '.github/copilot-instructions.md',
+        gemini: 'GEMINI.md',
       });
       expect(result.profileTools).toBeInstanceOf(Array);
     });

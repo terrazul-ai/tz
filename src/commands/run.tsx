@@ -321,7 +321,7 @@ async function ensurePackageInstalled(
  */
 interface RenderingOptions {
   /** Resolved tool type for rendering (from resolveSpawnTool) */
-  resolvedTool: 'claude' | 'codex' | 'cursor' | 'copilot' | 'gemini';
+  resolvedTool: 'claude' | 'codex' | 'gemini';
   toolSafeMode: boolean;
   force: boolean;
   localPackagePaths?: Map<string, string>;
@@ -335,7 +335,7 @@ interface RenderingOptions {
 function prepareRenderingOptions(
   opts: { toolSafeMode?: boolean; force?: boolean },
   resolved: ResolvedPackage | null,
-  resolvedToolType: 'claude' | 'codex' | 'cursor' | 'copilot' | 'gemini',
+  resolvedToolType: 'claude' | 'codex' | 'gemini',
 ): RenderingOptions {
   const toolSafeMode = opts.toolSafeMode ?? true;
 
