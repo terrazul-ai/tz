@@ -26,6 +26,7 @@ const SAFE_ARGS: Record<ToolType, string[]> = {
   codex: ['--sandbox', 'read-only'],
   cursor: [],
   copilot: [],
+  gemini: [],
 };
 
 const REQUIRED_ARGS: Record<ToolType, string[]> = {
@@ -33,6 +34,7 @@ const REQUIRED_ARGS: Record<ToolType, string[]> = {
   codex: [],
   cursor: [],
   copilot: [],
+  gemini: [],
 };
 
 const SAFE_MODE_FLAG_OVERRIDES: Record<
@@ -48,6 +50,7 @@ const SAFE_MODE_FLAG_OVERRIDES: Record<
   codex: [{ flag: '--sandbox', consumesValue: true }],
   cursor: [],
   copilot: [],
+  gemini: [],
 };
 
 function removeFlag(args: string[], flag: string, consumesValue: boolean): string[] {

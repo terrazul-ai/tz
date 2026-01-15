@@ -11,6 +11,7 @@ export const DIRECTORY_DEFAULT_FILENAMES: Record<ToolType, string> = {
   codex: 'AGENTS.md',
   cursor: 'rules.mdc',
   copilot: 'instructions.md',
+  gemini: 'GEMINI.md',
 };
 
 export function safeResolveWithin(base: string, rel: string): string {

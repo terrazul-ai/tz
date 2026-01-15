@@ -6,7 +6,7 @@ import { z } from 'zod';
 
 import { PackageNameSchema } from '../types/package.js';
 
-export type ToolName = 'claude' | 'codex' | 'cursor' | 'copilot';
+export type ToolName = 'claude' | 'codex' | 'cursor' | 'copilot' | 'gemini';
 
 export interface ExportEntry {
   template?: string;
@@ -23,7 +23,7 @@ export interface ExportEntry {
 }
 
 /** Tool types that support spawning/running (answer tools) */
-export type AnswerToolName = 'claude' | 'codex';
+export type AnswerToolName = 'claude' | 'codex' | 'gemini';
 
 export interface ProjectManifest {
   package?: {
@@ -61,7 +61,7 @@ const ExportEntrySchema = z
   })
   .catchall(z.any());
 
-const AnswerToolSchema = z.enum(['claude', 'codex']);
+const AnswerToolSchema = z.enum(['claude', 'codex', 'gemini']);
 
 const ManifestSchema = z.object({
   package: z
@@ -163,10 +163,10 @@ export async function readManifest(projectDir: string): Promise<ProjectManifest 
       }
     }
 
-    // Parse tool field - must be 'claude' or 'codex'
+    // Parse tool field - must be 'claude', 'codex', or 'gemini'
     const rawTool = pkgObj.tool;
     const parsedTool: AnswerToolName | undefined =
-      rawTool === 'claude' || rawTool === 'codex' ? rawTool : undefined;
+      rawTool === 'claude' || rawTool === 'codex' || rawTool === 'gemini' ? rawTool : undefined;
 
     const manifest: ProjectManifest = {
       package: {
@@ -558,4 +558,80 @@ export async function removePackageFromProfiles(
   const tomlOut = TOML.stringify(parsed as unknown as TOML.JsonMap);
   await fs.writeFile(manifestPath, tomlOut, 'utf8');
   return true;
+}
+
+/**
+ * Set or remove the default tool in the manifest's [package] section.
+ * @param projectDir - Project directory containing agents.toml
+ * @param tool - Tool to set as default, or null to remove
+ * @returns true if the manifest was modified, false otherwise
+ */
+export async function setPackageTool(
+  projectDir: string,
+  tool: AnswerToolName | null,
+): Promise<boolean> {
+  const manifestPath = path.join(projectDir, 'agents.toml');
+
+  let raw: string;
+  try {
+    raw = await fs.readFile(manifestPath, 'utf8');
+  } catch {
+    return false;
+  }
+
+  let parsed: unknown;
+  try {
+    parsed = TOML.parse(raw);
+  } catch {
+    return false;
+  }
+
+  if (!isRecord(parsed)) {
+    return false;
+  }
+
+  // Initialize package section if it doesn't exist
+  if (!parsed['package']) {
+    parsed['package'] = {};
+  }
+
+  const pkgRaw = parsed['package'];
+  if (!isRecord(pkgRaw)) {
+    return false;
+  }
+
+  // Check if we need to change anything
+  const existing = pkgRaw['tool'];
+  if (tool === null) {
+    // Remove tool field
+    if (existing === undefined) {
+      return false; // Nothing to remove
+    }
+    delete pkgRaw['tool'];
+  } else {
+    // Set tool field
+    if (existing === tool) {
+      return false; // No change needed
+    }
+    pkgRaw['tool'] = tool;
+  }
+
+  const tomlOut = TOML.stringify(parsed as unknown as TOML.JsonMap);
+  await fs.writeFile(manifestPath, tomlOut, 'utf8');
+  return true;
+}
+
+/**
+ * Get the current tool setting from the manifest
+ * @param projectDir - Project directory containing agents.toml
+ * @returns The tool if set, null if not set, undefined if manifest doesn't exist
+ */
+export async function getPackageTool(
+  projectDir: string,
+): Promise<AnswerToolName | null | undefined> {
+  const manifest = await readManifest(projectDir);
+  if (!manifest) {
+    return undefined;
+  }
+  return manifest.package?.tool ?? null;
 }

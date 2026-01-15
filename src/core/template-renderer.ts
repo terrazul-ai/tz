@@ -609,7 +609,7 @@ export async function planAndRender(
     // Read manifest and templates from store path (read-only)
     const m = await readManifest(p.storePath);
     const exp = (m?.exports ?? {}) as Partial<
-      Record<'claude' | 'codex' | 'cursor' | 'copilot', ExportEntry>
+      Record<'claude' | 'codex' | 'cursor' | 'copilot' | 'gemini', ExportEntry>
     >;
     const toRender: Array<{
       abs: string;
@@ -621,6 +621,7 @@ export async function planAndRender(
     if (exp?.codex) toRender.push(...collectFromExports(p.storePath, 'codex', exp.codex));
     if (exp?.cursor) toRender.push(...collectFromExports(p.storePath, 'cursor', exp.cursor));
     if (exp?.copilot) toRender.push(...collectFromExports(p.storePath, 'copilot', exp.copilot));
+    if (exp?.gemini) toRender.push(...collectFromExports(p.storePath, 'gemini', exp.gemini));
 
     // Deduplicate templates by absolute path to prevent rendering the same file multiple times
     const seen = new Map<

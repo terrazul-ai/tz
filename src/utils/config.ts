@@ -31,6 +31,7 @@ const DEFAULT_COMMANDS: Record<ToolType, string> = {
   codex: 'codex',
   cursor: 'cursor-agent',
   copilot: 'copilot',
+  gemini: 'gemini',
 };
 
 const DEFAULT_PROFILE_TOOLS: ToolSpec[] = [
@@ -38,6 +39,7 @@ const DEFAULT_PROFILE_TOOLS: ToolSpec[] = [
   { type: 'codex', command: 'codex', args: ['exec'] },
   { type: 'cursor', command: 'cursor-agent' },
   { type: 'copilot', command: 'copilot' },
+  { type: 'gemini', command: 'gemini' },
 ];
 
 function cloneToolSpec(spec: ToolSpec): ToolSpec {
@@ -148,13 +150,21 @@ function withContextFileDefaults(cfg: UserConfig): UserConfig {
     codex: 'AGENTS.md',
     cursor: '.cursor/rules.mdc',
     copilot: '.github/copilot-instructions.md',
+    gemini: 'GEMINI.md',
   } as const;
   const files = (cfg.context?.files ?? {}) as Record<string, string>;
-  const mergedFiles: { claude: string; codex: string; cursor: string; copilot: string } = {
+  const mergedFiles: {
+    claude: string;
+    codex: string;
+    cursor: string;
+    copilot: string;
+    gemini: string;
+  } = {
     claude: files.claude ?? defaults.claude,
     codex: files.codex ?? defaults.codex,
     cursor: files.cursor ?? defaults.cursor,
     copilot: files.copilot ?? defaults.copilot,
+    gemini: files.gemini ?? defaults.gemini,
   };
   cfg.context = cfg.context ? { ...cfg.context, files: mergedFiles } : { files: mergedFiles };
   return cfg;
@@ -333,6 +343,7 @@ interface DestinationMap {
   codex: string;
   cursor: string;
   copilot: string;
+  gemini: string;
 }
 
 export function getProfileTools(cfg: UserConfig): ToolSpec[] {
@@ -351,6 +362,7 @@ function getDestinationMap(cfg: UserConfig): DestinationMap {
     codex: 'AGENTS.md',
     cursor: '.cursor/rules.mdc',
     copilot: '.github/copilot-instructions.md',
+    gemini: 'GEMINI.md',
   };
   return defaults;
 }

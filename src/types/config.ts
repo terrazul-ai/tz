@@ -28,7 +28,7 @@ const EnvironmentConfigSchema = z
   })
   .strict();
 const ToolSpecSchema = z.object({
-  type: z.enum(['claude', 'codex', 'cursor', 'copilot']),
+  type: z.enum(['claude', 'codex', 'cursor', 'copilot', 'gemini']),
   command: z.string().optional(),
   args: z.array(z.string()).optional(),
   model: z.string().optional(),
@@ -41,6 +41,7 @@ const ContextFilesSchema = z
     codex: z.string().default('AGENTS.md'),
     cursor: z.string().default('.cursor/rules.mdc'),
     copilot: z.string().default('.github/copilot-instructions.md'),
+    gemini: z.string().default('GEMINI.md'),
   })
   .partial()
   .default({});

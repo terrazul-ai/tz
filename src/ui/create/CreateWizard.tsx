@@ -39,7 +39,7 @@ interface ToolDescriptor {
   label: string;
 }
 
-type SelectableTool = 'claude' | 'codex' | 'cursor' | 'copilot';
+type SelectableTool = 'claude' | 'codex' | 'cursor' | 'copilot' | 'gemini';
 
 export interface CreateWizardAutomation {
   name?: string;
@@ -55,6 +55,7 @@ export interface CreateWizardAutomation {
 const TOOLS: ToolDescriptor[] = [
   { id: 'claude', label: 'claude — Claude Code compatibility' },
   { id: 'codex', label: 'codex — Codex cli compatibility' },
+  { id: 'gemini', label: 'gemini — Google Gemini compatibility' },
   { id: 'cursor', label: 'cursor — Cursor workspace tooling' },
   { id: 'copilot', label: 'copilot — GitHub Copilot instructions' },
 ];

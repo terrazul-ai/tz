@@ -18,6 +18,7 @@ export const TOOL_ROOT_DIRECTORIES: Record<ToolType, string> = {
   codex: '.codex',
   cursor: '.cursor',
   copilot: '.github',
+  gemini: '.gemini',
 };
 
 /**
@@ -31,6 +32,7 @@ export const TOOL_OPERATIONAL_DIRS: Record<ToolType, string[]> = {
   codex: ['skills'],
   cursor: [],
   copilot: [],
+  gemini: [],
 };
 
 export interface RenderedFile {

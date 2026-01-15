@@ -72,6 +72,13 @@ const TOOL_EXPORT_TEMPLATES: Record<ToolName, { template: string; contents: stri
 <!-- Provide Copilot overrides or instructions. -->
 `,
   },
+  gemini: {
+    template: 'templates/GEMINI.md.hbs',
+    contents: `# GEMINI.md
+
+<!-- Add Gemini-specific configuration and instructions here. -->
+`,
+  },
 };
 
 function formatPath(baseDir: string, targetPath: string): string {

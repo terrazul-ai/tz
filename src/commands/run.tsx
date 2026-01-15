@@ -319,7 +319,7 @@ async function ensurePackageInstalled(
  * Options for template rendering
  */
 interface RenderingOptions {
-  toolOverride: 'claude' | 'codex' | 'cursor' | 'copilot' | undefined;
+  toolOverride: 'claude' | 'codex' | 'cursor' | 'copilot' | 'gemini' | undefined;
   toolSafeMode: boolean;
   force: boolean;
   localPackagePaths?: Map<string, string>;
@@ -587,7 +587,7 @@ async function spawnToolWithConfig(
   ctx: CLIContext,
   projectRoot: string,
   mcpResult: MCPConfigResult,
-  toolOverride?: 'claude' | 'codex' | 'cursor' | 'copilot',
+  toolOverride?: 'claude' | 'codex' | 'cursor' | 'copilot' | 'gemini',
 ): Promise<number> {
   // Skip spawning tool in non-interactive environments (tests, CI)
   const skipSpawn = process.env.TZ_SKIP_SPAWN === 'true' || !process.stdout.isTTY;
