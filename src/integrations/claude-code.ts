@@ -208,3 +208,54 @@ export async function spawnClaudeCode(
     });
   });
 }
+
+/**
+ * Spawn Claude Code CLI in headless mode with a prompt
+ */
+export async function spawnClaudeCodeHeadless(
+  mcpConfigPath: string,
+  prompt: string,
+  cwd?: string,
+  model?: string,
+): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const args = ['--mcp-config', mcpConfigPath, '--strict-mcp-config'];
+
+    // Add model flag if specified (skip 'default' to use user's environment preference)
+    if (model && model !== 'default') {
+      args.push('--model', model);
+    }
+
+    // Add headless prompt flag
+    args.push('-p', prompt);
+
+    const workingDir = cwd || process.cwd();
+
+    // Log the full command for debugging
+    console.log(`Executing: claude ${args.join(' ')}`);
+    console.log(`Working directory: ${workingDir}`);
+
+    const child = spawn('claude', args, {
+      cwd: workingDir,
+      stdio: 'inherit',
+      shell: false,
+    });
+
+    child.on('error', (error) => {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+        reject(
+          new TerrazulError(
+            ErrorCode.TOOL_NOT_FOUND,
+            'Claude CLI not found. Install it from https://claude.com/code',
+          ),
+        );
+      } else {
+        reject(error);
+      }
+    });
+
+    child.on('exit', (code) => {
+      resolve(code ?? 0);
+    });
+  });
+}

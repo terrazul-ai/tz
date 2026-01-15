@@ -13,6 +13,7 @@ import {
   aggregateMCPConfigs,
   cleanupMCPConfig,
   generateMCPConfigFile,
+  spawnClaudeCodeHeadless,
 } from '../integrations/claude-code.js';
 import { createSymlinks } from '../integrations/symlink-manager.js';
 import { loadMCPConfig, spawnTool } from '../integrations/tool-spawner.js';
@@ -588,21 +589,44 @@ async function prepareMCPConfig(
  * Spawn the resolved tool with MCP config or skip in non-interactive mode.
  * The tool spec should be pre-resolved using resolveSpawnTool to ensure
  * consistent tool selection between rendering and spawning.
+ *
+ * @param prompt - If provided, runs in headless mode (Claude only)
  */
 async function spawnToolWithConfig(
   ctx: CLIContext,
   projectRoot: string,
   mcpResult: MCPConfigResult,
   tool: ToolSpec,
+  prompt?: string,
 ): Promise<number> {
+  const isHeadless = !!prompt;
+
   // Skip spawning tool in non-interactive environments (tests, CI)
-  const skipSpawn = process.env.TZ_SKIP_SPAWN === 'true' || !process.stdout.isTTY;
+  // unless running in headless mode
+  const skipSpawn = !isHeadless && (process.env.TZ_SKIP_SPAWN === 'true' || !process.stdout.isTTY);
 
   if (skipSpawn) {
     ctx.logger.info(
       `Rendered templates with ${mcpResult.serverCount} MCP server(s). Skipping tool launch (non-interactive).`,
     );
     return 0;
+  }
+
+  // Get model from user config
+  const userConfig = await ctx.config.load();
+  const claudeTool = userConfig.profile?.tools?.find((t) => t.type === 'claude');
+  const model = claudeTool?.model;
+
+  // Handle headless mode (Claude only)
+  if (isHeadless) {
+    if (tool.type !== 'claude') {
+      throw new TerrazulError(
+        ErrorCode.CONFIG_INVALID,
+        `Headless mode (-p/--prompt) is only supported for Claude, not ${tool.type}`,
+      );
+    }
+    ctx.logger.info('Running Claude Code in headless mode...');
+    return spawnClaudeCodeHeadless(mcpResult.configPath, prompt, projectRoot, model);
   }
 
   // Log launch message
@@ -812,10 +836,17 @@ export function registerRunCommand(
     .option('--tool <tool>', 'Use a specific answer tool (claude or codex)')
     .option('--no-tool-safe-mode', 'Disable safe mode for tool execution')
     .option('--force', 'Force re-rendering even if files already exist')
+    .option('-p, --prompt <prompt>', 'Run in headless mode with the given prompt')
     .action(
       async (
         _pkg: string | undefined,
-        opts: { profile?: string; tool?: string; toolSafeMode?: boolean; force?: boolean },
+        opts: {
+          profile?: string;
+          tool?: string;
+          toolSafeMode?: boolean;
+          force?: boolean;
+          prompt?: string;
+        },
       ) => {
         const globalOpts = program.opts<{ verbose?: boolean }>();
         const ctx = createCtx({ verbose: globalOpts.verbose });
@@ -888,7 +919,13 @@ export function registerRunCommand(
 
           // Spawn tool (with cleanup) - uses the same resolved tool spec
           try {
-            const exitCode = await spawnToolWithConfig(ctx, projectRoot, mcpResult, toolSpec);
+            const exitCode = await spawnToolWithConfig(
+              ctx,
+              projectRoot,
+              mcpResult,
+              toolSpec,
+              opts.prompt,
+            );
             await cleanupMCPConfig(mcpResult.configPath);
             process.exitCode = exitCode;
           } catch (error) {
