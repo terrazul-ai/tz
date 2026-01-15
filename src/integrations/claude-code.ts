@@ -180,10 +180,6 @@ export async function spawnClaudeCode(
     args.push(...additionalArgs);
     const workingDir = cwd || process.cwd();
 
-    // Log the full command for debugging
-    console.log(`Executing: claude ${args.join(' ')}`);
-    console.log(`Working directory: ${workingDir}`);
-
     const child = spawn('claude', args, {
       cwd: workingDir,
       stdio: 'inherit',
@@ -230,10 +226,6 @@ export async function spawnClaudeCodeHeadless(
     args.push('-p', prompt);
 
     const workingDir = cwd || process.cwd();
-
-    // Log the full command for debugging
-    console.log(`Executing: claude ${args.join(' ')}`);
-    console.log(`Working directory: ${workingDir}`);
 
     const child = spawn('claude', args, {
       cwd: workingDir,
