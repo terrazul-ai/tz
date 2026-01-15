@@ -26,6 +26,7 @@ import { resolveSpawnTool } from '../utils/spawn-tool-resolve.js';
 import { normalizeToolOption } from '../utils/tool-options.js';
 
 import type { SnippetProgress } from '../core/template-renderer.js';
+import type { ToolSpec } from '../types/context.js';
 import type { CLIContext } from '../utils/context.js';
 import type { Command } from 'commander';
 import type { Instance } from 'ink';
@@ -319,20 +320,23 @@ async function ensurePackageInstalled(
  * Options for template rendering
  */
 interface RenderingOptions {
-  toolOverride: 'claude' | 'codex' | 'cursor' | 'copilot' | 'gemini' | undefined;
+  /** Resolved tool type for rendering (from resolveSpawnTool) */
+  resolvedTool: 'claude' | 'codex' | 'cursor' | 'copilot' | 'gemini';
   toolSafeMode: boolean;
   force: boolean;
   localPackagePaths?: Map<string, string>;
 }
 
 /**
- * Prepare rendering options from command options and resolved package
+ * Prepare rendering options from command options and resolved package.
+ * NOTE: resolvedToolType should be obtained from resolveSpawnTool to ensure
+ * consistent tool selection between rendering and spawning.
  */
 function prepareRenderingOptions(
-  opts: { tool?: string; toolSafeMode?: boolean; force?: boolean },
+  opts: { toolSafeMode?: boolean; force?: boolean },
   resolved: ResolvedPackage | null,
+  resolvedToolType: 'claude' | 'codex' | 'cursor' | 'copilot' | 'gemini',
 ): RenderingOptions {
-  const toolOverride = normalizeToolOption(opts.tool);
   const toolSafeMode = opts.toolSafeMode ?? true;
 
   // Local packages should always force re-render to reflect latest changes
@@ -345,7 +349,7 @@ function prepareRenderingOptions(
       : undefined;
 
   return {
-    toolOverride,
+    resolvedTool: resolvedToolType,
     toolSafeMode,
     force,
     localPackagePaths,
@@ -373,7 +377,7 @@ async function executeRendering(
       force: renderOpts.force,
       packageName,
       profileName,
-      tool: renderOpts.toolOverride,
+      tool: renderOpts.resolvedTool,
       toolSafeMode: renderOpts.toolSafeMode,
       verbose: ctx.logger.isVerbose(),
       onSnippetEvent: spinner.onSnippetEvent,
@@ -581,13 +585,15 @@ async function prepareMCPConfig(
 }
 
 /**
- * Spawn the resolved tool with MCP config or skip in non-interactive mode
+ * Spawn the resolved tool with MCP config or skip in non-interactive mode.
+ * The tool spec should be pre-resolved using resolveSpawnTool to ensure
+ * consistent tool selection between rendering and spawning.
  */
 async function spawnToolWithConfig(
   ctx: CLIContext,
   projectRoot: string,
   mcpResult: MCPConfigResult,
-  toolOverride?: 'claude' | 'codex' | 'cursor' | 'copilot' | 'gemini',
+  tool: ToolSpec,
 ): Promise<number> {
   // Skip spawning tool in non-interactive environments (tests, CI)
   const skipSpawn = process.env.TZ_SKIP_SPAWN === 'true' || !process.stdout.isTTY;
@@ -598,14 +604,6 @@ async function spawnToolWithConfig(
     );
     return 0;
   }
-
-  // Resolve which tool to spawn using precedence: flag > project > user
-  const userConfig = await ctx.config.load();
-  const tool = await resolveSpawnTool({
-    flagOverride: toolOverride,
-    projectRoot,
-    userConfig,
-  });
 
   // Log launch message
   if (mcpResult.serverCount > 0) {
@@ -844,8 +842,17 @@ export function registerRunCommand(
           // Extract values for downstream use
           const packageName = resolved?.packageName;
 
-          // Prepare rendering options
-          const renderOpts = prepareRenderingOptions(opts, resolved);
+          // Resolve tool ONCE using precedence: CLI flag > project manifest > user config
+          // This ensures consistent tool selection between rendering and spawning
+          const userConfig = await ctx.config.load();
+          const toolSpec = await resolveSpawnTool({
+            flagOverride: normalizeToolOption(opts.tool),
+            projectRoot,
+            userConfig,
+          });
+
+          // Prepare rendering options using the resolved tool
+          const renderOpts = prepareRenderingOptions(opts, resolved, toolSpec.type);
 
           // Execute rendering with progress tracking
           const result = await executeRendering(
@@ -879,14 +886,9 @@ export function registerRunCommand(
           // Prepare MCP config
           const mcpResult = await prepareMCPConfig(ctx, projectRoot, agentModulesRoot, packages);
 
-          // Spawn tool (with cleanup)
+          // Spawn tool (with cleanup) - uses the same resolved tool spec
           try {
-            const exitCode = await spawnToolWithConfig(
-              ctx,
-              projectRoot,
-              mcpResult,
-              renderOpts.toolOverride,
-            );
+            const exitCode = await spawnToolWithConfig(ctx, projectRoot, mcpResult, toolSpec);
             await cleanupMCPConfig(mcpResult.configPath);
             process.exitCode = exitCode;
           } catch (error) {
