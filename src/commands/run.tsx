@@ -487,6 +487,7 @@ async function handleContextInjection(
 
 /**
  * Create symlinks for operational files (agents/, commands/, hooks/, skills/)
+ * Routes each file to its correct tool directory based on file.tool property
  *
  * @param exclusive - When true, removes symlinks from packages NOT in the target list.
  *                    Use this for specific package runs or profile runs.
@@ -496,7 +497,6 @@ async function handleSymlinkCreation(
   projectRoot: string,
   packages: string[],
   renderedFiles: Awaited<ReturnType<typeof planAndRender>>['renderedFiles'],
-  toolOverride: 'claude' | 'codex' | 'cursor' | 'copilot' | undefined,
   exclusive: boolean = false,
 ): Promise<void> {
   // Skip if no packages
@@ -508,7 +508,6 @@ async function handleSymlinkCreation(
     projectRoot,
     packages,
     renderedFiles,
-    activeTool: toolOverride ?? 'claude',
     exclusive,
   });
 
@@ -527,7 +526,7 @@ async function handleSymlinkCreation(
 
   // Log created symlinks
   if (symlinkResult.created.length > 0) {
-    ctx.logger.info(`Created ${symlinkResult.created.length} symlink(s) in .claude/ directories`);
+    ctx.logger.info(`Created ${symlinkResult.created.length} symlink(s)`);
     if (ctx.logger.isVerbose()) {
       for (const link of symlinkResult.created) {
         const relPath = path.relative(projectRoot, link);
@@ -874,7 +873,6 @@ export function registerRunCommand(
             projectRoot,
             packages,
             result.renderedFiles,
-            renderOpts.toolOverride,
             exclusiveMode,
           );
 

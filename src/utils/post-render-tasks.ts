@@ -88,7 +88,7 @@ async function createPackageSymlinks(
   });
 
   if (symlinkResult.created.length > 0) {
-    logger.info(`Created ${symlinkResult.created.length} symlink(s) in .claude/ directories`);
+    logger.info(`Created ${symlinkResult.created.length} symlink(s)`);
   }
 
   if (symlinkResult.errors.length > 0) {

@@ -119,7 +119,7 @@ async function cleanupSymlinksAndContext(
   // Remove symlinks for this package
   const symlinkResult = await removeSymlinks(projectDir, pkg);
   if (symlinkResult.removed.length > 0) {
-    ctx.logger.info(`Removed ${symlinkResult.removed.length} symlink(s) from .claude/ directories`);
+    ctx.logger.info(`Removed ${symlinkResult.removed.length} symlink(s)`);
     if (ctx.logger.isVerbose()) {
       for (const link of symlinkResult.removed) {
         const relPath = path.relative(projectDir, link);

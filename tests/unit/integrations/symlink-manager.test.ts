@@ -62,7 +62,6 @@ describe('symlink-manager', () => {
           projectRoot: tmpDir,
           packages: ['@terrazul/general-coder'],
           renderedFiles,
-          activeTool: 'claude',
         });
 
         // Verify symlinks were created
@@ -96,7 +95,6 @@ describe('symlink-manager', () => {
           projectRoot: tmpDir,
           packages: ['@user/pkg'],
           renderedFiles,
-          activeTool: 'claude',
         });
 
         expect(result.created).toHaveLength(1);
@@ -125,7 +123,6 @@ describe('symlink-manager', () => {
           projectRoot: tmpDir,
           packages: ['@user/pkg'],
           renderedFiles,
-          activeTool: 'claude',
         });
 
         expect(result.created).toHaveLength(1);
@@ -156,7 +153,6 @@ describe('symlink-manager', () => {
           projectRoot: tmpDir,
           packages: ['@terrazul/general-coder'],
           renderedFiles,
-          activeTool: 'claude',
         });
 
         // Should be skipped
@@ -193,7 +189,6 @@ describe('symlink-manager', () => {
           projectRoot: tmpDir,
           packages: ['@terrazul/general-coder'],
           renderedFiles,
-          activeTool: 'claude',
         });
 
         // Only the agent file should be symlinked
@@ -205,16 +200,22 @@ describe('symlink-manager', () => {
       });
     });
 
-    describe('tool filtering', () => {
-      it('should only create symlinks for active tool files', async () => {
+    describe('multi-tool routing', () => {
+      it('should route files to correct tool directories based on file.tool', async () => {
+        const codexDir = path.join(tmpDir, '.codex');
+        await fs.mkdir(codexDir, { recursive: true });
+
         const pkgRoot = path.join(agentModulesDir, '@user', 'multi-tool');
         const claudeAgentsDir = path.join(pkgRoot, 'claude', 'agents');
-        const codexAgentsDir = path.join(pkgRoot, 'codex', 'agents');
+        const claudeSkillDir = path.join(pkgRoot, 'claude', 'skills', 'claude-skill');
+        const codexSkillDir = path.join(pkgRoot, 'codex', 'skills', 'codex-skill');
         await fs.mkdir(claudeAgentsDir, { recursive: true });
-        await fs.mkdir(codexAgentsDir, { recursive: true });
+        await fs.mkdir(claudeSkillDir, { recursive: true });
+        await fs.mkdir(codexSkillDir, { recursive: true });
 
-        await fs.writeFile(path.join(claudeAgentsDir, 'claude-agent.md'), '# Claude');
-        await fs.writeFile(path.join(codexAgentsDir, 'codex-agent.md'), '# Codex');
+        await fs.writeFile(path.join(claudeAgentsDir, 'claude-agent.md'), '# Claude Agent');
+        await fs.writeFile(path.join(claudeSkillDir, 'SKILL.md'), '# Claude Skill');
+        await fs.writeFile(path.join(codexSkillDir, 'SKILL.md'), '# Codex Skill');
 
         const renderedFiles = [
           {
@@ -225,26 +226,65 @@ describe('symlink-manager', () => {
           },
           {
             pkgName: '@user/multi-tool',
-            source: path.join(codexAgentsDir, 'codex-agent.md'),
+            source: path.join(claudeSkillDir, 'SKILL.md'),
+            tool: 'claude' as const,
+            isMcpConfig: false,
+          },
+          {
+            pkgName: '@user/multi-tool',
+            source: path.join(codexSkillDir, 'SKILL.md'),
             tool: 'codex' as const,
             isMcpConfig: false,
           },
         ];
 
-        // Only create symlinks for Claude tool
+        // Create symlinks for ALL files in a single call
         const result = await createSymlinks({
           projectRoot: tmpDir,
           packages: ['@user/multi-tool'],
           renderedFiles,
-          activeTool: 'claude',
         });
 
-        // Only Claude file should be symlinked
-        expect(result.created).toHaveLength(1);
+        // All files should be symlinked: 1 claude agent + 1 claude skill + 1 codex skill
+        expect(result.created).toHaveLength(3);
 
-        const agentsSymlinks = await fs.readdir(path.join(claudeDir, 'agents'));
-        expect(agentsSymlinks).toContain('@user-multi-tool-claude-agent.md');
-        expect(agentsSymlinks).not.toContain('@user-multi-tool-codex-agent.md');
+        // Claude agent goes to .claude/agents/
+        const claudeAgentsSymlinks = await fs.readdir(path.join(claudeDir, 'agents'));
+        expect(claudeAgentsSymlinks).toContain('@user-multi-tool-claude-agent.md');
+
+        // Claude skill goes to .claude/skills/
+        const claudeSkillsSymlinks = await fs.readdir(path.join(claudeDir, 'skills'));
+        expect(claudeSkillsSymlinks).toContain('@user-multi-tool-claude-skill');
+
+        // Codex skill goes to .codex/skills/
+        const codexSkillsSymlinks = await fs.readdir(path.join(codexDir, 'skills'));
+        expect(codexSkillsSymlinks).toContain('@user-multi-tool-codex-skill');
+      });
+
+      it('should skip files for tools with no operational directories', async () => {
+        const pkgRoot = path.join(agentModulesDir, '@user', 'cursor-pkg');
+        const cursorAgentsDir = path.join(pkgRoot, 'cursor', 'agents');
+        await fs.mkdir(cursorAgentsDir, { recursive: true });
+
+        await fs.writeFile(path.join(cursorAgentsDir, 'agent.md'), '# Cursor Agent');
+
+        const renderedFiles = [
+          {
+            pkgName: '@user/cursor-pkg',
+            source: path.join(cursorAgentsDir, 'agent.md'),
+            tool: 'cursor' as const, // cursor has no operational dirs
+            isMcpConfig: false,
+          },
+        ];
+
+        const result = await createSymlinks({
+          projectRoot: tmpDir,
+          packages: ['@user/cursor-pkg'],
+          renderedFiles,
+        });
+
+        // No symlinks created (cursor has empty operational dirs)
+        expect(result.created).toHaveLength(0);
       });
     });
 
@@ -269,7 +309,6 @@ describe('symlink-manager', () => {
           projectRoot: tmpDir,
           packages: ['@user/pkg'],
           renderedFiles,
-          activeTool: 'claude',
         });
 
         // Read registry
@@ -319,7 +358,6 @@ describe('symlink-manager', () => {
           projectRoot: tmpDir,
           packages: ['@user/pkg'],
           renderedFiles,
-          activeTool: 'claude',
         });
 
         // Only agent.md should be symlinked
@@ -392,7 +430,6 @@ describe('symlink-manager', () => {
           projectRoot: tmpDir,
           packages: ['@user/pkg'],
           renderedFiles,
-          activeTool: 'claude',
         });
 
         // 2 file symlinks (agent, command) + 1 directory symlink (skill)
@@ -434,7 +471,6 @@ describe('symlink-manager', () => {
           projectRoot: tmpDir,
           packages: ['@user/pkg'],
           renderedFiles,
-          activeTool: 'claude',
         });
 
         // Hooks should not be symlinked
@@ -478,7 +514,6 @@ describe('symlink-manager', () => {
           projectRoot: tmpDir,
           packages: ['@leourbina/gcloud-log-analyzer'],
           renderedFiles,
-          activeTool: 'claude',
         });
 
         // Should create ONE directory symlink, not 3 file symlinks
@@ -570,7 +605,6 @@ describe('symlink-manager', () => {
           projectRoot: tmpDir,
           packages: ['@leourbina/gcloud-log-analyzer'],
           renderedFiles,
-          activeTool: 'claude',
         });
 
         // Should create 3 directory symlinks
@@ -603,7 +637,6 @@ describe('symlink-manager', () => {
           projectRoot: tmpDir,
           packages: ['@user/pkg'],
           renderedFiles,
-          activeTool: 'claude',
         });
 
         // Read registry
@@ -648,7 +681,6 @@ describe('symlink-manager', () => {
           projectRoot: tmpDir,
           packages: ['@user/pkg'],
           renderedFiles,
-          activeTool: 'claude',
         });
 
         // Verify symlink exists
@@ -720,7 +752,6 @@ describe('symlink-manager', () => {
           projectRoot: tmpDir,
           packages: ['@user/pkg'],
           renderedFiles,
-          activeTool: 'claude',
         });
 
         // Should create ONE directory symlink (not 4 file symlinks)
@@ -1201,7 +1232,6 @@ describe('symlink-manager', () => {
         projectRoot: tmpDir,
         packages: ['@user/pkg'],
         renderedFiles,
-        activeTool: 'claude',
       });
       expect(result1.created).toHaveLength(1);
 
@@ -1221,7 +1251,6 @@ describe('symlink-manager', () => {
         projectRoot: tmpDir,
         packages: ['@user/pkg'],
         renderedFiles,
-        activeTool: 'claude',
       });
 
       // 6. Verify symlink was recreated (not skipped)
@@ -1259,7 +1288,6 @@ describe('symlink-manager', () => {
         projectRoot: tmpDir,
         packages: ['@user/pkg'],
         renderedFiles,
-        activeTool: 'claude',
       });
 
       // Remove symlinks
@@ -1275,6 +1303,262 @@ describe('symlink-manager', () => {
         .then(() => true)
         .catch(() => false);
       expect(exists).toBe(false);
+    });
+  });
+
+  describe('codex tool support', () => {
+    let codexDir: string;
+
+    beforeEach(async () => {
+      codexDir = path.join(tmpDir, '.codex');
+      await fs.mkdir(codexDir, { recursive: true });
+    });
+
+    it('should create skill symlinks in .codex/skills for codex tool', async () => {
+      const pkgRoot = path.join(agentModulesDir, '@user', 'qa-engineer');
+      const skillDir = path.join(pkgRoot, 'codex', 'skills', 'api-validation');
+      await fs.mkdir(skillDir, { recursive: true });
+      await fs.writeFile(path.join(skillDir, 'SKILL.md'), '# API Validation');
+
+      const renderedFiles = [
+        {
+          pkgName: '@user/qa-engineer',
+          source: path.join(skillDir, 'SKILL.md'),
+          tool: 'codex' as const,
+          isMcpConfig: false,
+        },
+      ];
+
+      const result = await createSymlinks({
+        projectRoot: tmpDir,
+        packages: ['@user/qa-engineer'],
+        renderedFiles,
+      });
+
+      expect(result.created).toHaveLength(1);
+
+      // Verify symlink is in .codex/skills/, not .claude/skills/
+      const codexSkillsDir = path.join(codexDir, 'skills');
+      const codexSymlinks = await fs.readdir(codexSkillsDir);
+      expect(codexSymlinks).toContain('@user-qa-engineer-api-validation');
+
+      // Verify .claude/skills/ was NOT created
+      const claudeSkillsDir = path.join(tmpDir, '.claude', 'skills');
+      const claudeSkillsExists = await fs
+        .access(claudeSkillsDir)
+        .then(() => true)
+        .catch(() => false);
+      expect(claudeSkillsExists).toBe(false);
+    });
+
+    it('should NOT create agent/command symlinks for codex tool (only skills supported)', async () => {
+      const pkgRoot = path.join(agentModulesDir, '@user', 'qa-engineer');
+      const agentsDir = path.join(pkgRoot, 'codex', 'agents');
+      const commandsDir = path.join(pkgRoot, 'codex', 'commands');
+      const skillsDir = path.join(pkgRoot, 'codex', 'skills', 'test-skill');
+
+      await fs.mkdir(agentsDir, { recursive: true });
+      await fs.mkdir(commandsDir, { recursive: true });
+      await fs.mkdir(skillsDir, { recursive: true });
+
+      await fs.writeFile(path.join(agentsDir, 'agent.md'), '# Agent');
+      await fs.writeFile(path.join(commandsDir, 'cmd.md'), '# Command');
+      await fs.writeFile(path.join(skillsDir, 'SKILL.md'), '# Skill');
+
+      const renderedFiles = [
+        {
+          pkgName: '@user/qa-engineer',
+          source: path.join(agentsDir, 'agent.md'),
+          tool: 'codex' as const,
+          isMcpConfig: false,
+        },
+        {
+          pkgName: '@user/qa-engineer',
+          source: path.join(commandsDir, 'cmd.md'),
+          tool: 'codex' as const,
+          isMcpConfig: false,
+        },
+        {
+          pkgName: '@user/qa-engineer',
+          source: path.join(skillsDir, 'SKILL.md'),
+          tool: 'codex' as const,
+          isMcpConfig: false,
+        },
+      ];
+
+      const result = await createSymlinks({
+        projectRoot: tmpDir,
+        packages: ['@user/qa-engineer'],
+        renderedFiles,
+      });
+
+      // Only skill should be symlinked (codex only supports skills)
+      expect(result.created).toHaveLength(1);
+
+      // Verify only skills directory exists in .codex/
+      const codexSkillsExists = await fs
+        .access(path.join(codexDir, 'skills'))
+        .then(() => true)
+        .catch(() => false);
+      const codexAgentsExists = await fs
+        .access(path.join(codexDir, 'agents'))
+        .then(() => true)
+        .catch(() => false);
+      const codexCommandsExists = await fs
+        .access(path.join(codexDir, 'commands'))
+        .then(() => true)
+        .catch(() => false);
+
+      expect(codexSkillsExists).toBe(true);
+      expect(codexAgentsExists).toBe(false);
+      expect(codexCommandsExists).toBe(false);
+    });
+
+    it('should create multiple skill directory symlinks for codex packages', async () => {
+      const pkgRoot = path.join(agentModulesDir, '@user', 'qa-engineer');
+      const skillsBase = path.join(pkgRoot, 'codex', 'skills');
+
+      const skill1 = path.join(skillsBase, 'api-validation');
+      const skill2 = path.join(skillsBase, 'e2e-test');
+      const skill3 = path.join(skillsBase, 'regression-test');
+
+      await fs.mkdir(skill1, { recursive: true });
+      await fs.mkdir(skill2, { recursive: true });
+      await fs.mkdir(skill3, { recursive: true });
+
+      await fs.writeFile(path.join(skill1, 'SKILL.md'), '# API Validation');
+      await fs.writeFile(path.join(skill2, 'SKILL.md'), '# E2E Test');
+      await fs.writeFile(path.join(skill3, 'SKILL.md'), '# Regression Test');
+
+      const renderedFiles = [
+        {
+          pkgName: '@user/qa-engineer',
+          source: path.join(skill1, 'SKILL.md'),
+          tool: 'codex' as const,
+          isMcpConfig: false,
+        },
+        {
+          pkgName: '@user/qa-engineer',
+          source: path.join(skill2, 'SKILL.md'),
+          tool: 'codex' as const,
+          isMcpConfig: false,
+        },
+        {
+          pkgName: '@user/qa-engineer',
+          source: path.join(skill3, 'SKILL.md'),
+          tool: 'codex' as const,
+          isMcpConfig: false,
+        },
+      ];
+
+      const result = await createSymlinks({
+        projectRoot: tmpDir,
+        packages: ['@user/qa-engineer'],
+        renderedFiles,
+      });
+
+      expect(result.created).toHaveLength(3);
+
+      const skillsSymlinks = await fs.readdir(path.join(codexDir, 'skills'));
+      expect(skillsSymlinks).toContain('@user-qa-engineer-api-validation');
+      expect(skillsSymlinks).toContain('@user-qa-engineer-e2e-test');
+      expect(skillsSymlinks).toContain('@user-qa-engineer-regression-test');
+    });
+
+    it('should track codex symlinks in registry with correct tool type', async () => {
+      const pkgRoot = path.join(agentModulesDir, '@user', 'pkg');
+      const skillDir = path.join(pkgRoot, 'codex', 'skills', 'my-skill');
+      await fs.mkdir(skillDir, { recursive: true });
+      await fs.writeFile(path.join(skillDir, 'SKILL.md'), '# Skill');
+
+      const renderedFiles = [
+        {
+          pkgName: '@user/pkg',
+          source: path.join(skillDir, 'SKILL.md'),
+          tool: 'codex' as const,
+          isMcpConfig: false,
+        },
+      ];
+
+      await createSymlinks({
+        projectRoot: tmpDir,
+        packages: ['@user/pkg'],
+        renderedFiles,
+      });
+
+      const registryPath = path.join(tmpDir, '.terrazul', 'symlinks.json');
+      const registryContent = await fs.readFile(registryPath, 'utf8');
+      const registry = JSON.parse(registryContent);
+
+      // Registry key should be .codex/skills/..., not .claude/skills/...
+      const symlinkKey = '.codex/skills/@user-pkg-my-skill';
+      expect(registry.symlinks[symlinkKey]).toBeDefined();
+      expect(registry.symlinks[symlinkKey].tool).toBe('codex');
+    });
+  });
+
+  describe('multi-tool isolation', () => {
+    it('should keep claude and codex symlinks separate', async () => {
+      // Setup both .claude and .codex directories
+      const codexDir = path.join(tmpDir, '.codex');
+      await fs.mkdir(codexDir, { recursive: true });
+
+      const pkgRoot = path.join(agentModulesDir, '@user', 'multi-tool');
+
+      // Create skills for both tools
+      const claudeSkillDir = path.join(pkgRoot, 'claude', 'skills', 'claude-skill');
+      const codexSkillDir = path.join(pkgRoot, 'codex', 'skills', 'codex-skill');
+      await fs.mkdir(claudeSkillDir, { recursive: true });
+      await fs.mkdir(codexSkillDir, { recursive: true });
+
+      await fs.writeFile(path.join(claudeSkillDir, 'SKILL.md'), '# Claude Skill');
+      await fs.writeFile(path.join(codexSkillDir, 'SKILL.md'), '# Codex Skill');
+
+      // Create symlinks for claude tool
+      const claudeFiles = [
+        {
+          pkgName: '@user/multi-tool',
+          source: path.join(claudeSkillDir, 'SKILL.md'),
+          tool: 'claude' as const,
+          isMcpConfig: false,
+        },
+      ];
+
+      const claudeResult = await createSymlinks({
+        projectRoot: tmpDir,
+        packages: ['@user/multi-tool'],
+        renderedFiles: claudeFiles,
+      });
+
+      // Create symlinks for codex tool
+      const codexFiles = [
+        {
+          pkgName: '@user/multi-tool',
+          source: path.join(codexSkillDir, 'SKILL.md'),
+          tool: 'codex' as const,
+          isMcpConfig: false,
+        },
+      ];
+
+      const codexResult = await createSymlinks({
+        projectRoot: tmpDir,
+        packages: ['@user/multi-tool'],
+        renderedFiles: codexFiles,
+      });
+
+      // Verify both created their respective symlinks
+      expect(claudeResult.created).toHaveLength(1);
+      expect(codexResult.created).toHaveLength(1);
+
+      // Verify symlinks are in correct directories
+      const claudeSkills = await fs.readdir(path.join(claudeDir, 'skills'));
+      const codexSkills = await fs.readdir(path.join(codexDir, 'skills'));
+
+      expect(claudeSkills).toContain('@user-multi-tool-claude-skill');
+      expect(claudeSkills).not.toContain('@user-multi-tool-codex-skill');
+
+      expect(codexSkills).toContain('@user-multi-tool-codex-skill');
+      expect(codexSkills).not.toContain('@user-multi-tool-claude-skill');
     });
   });
 });
