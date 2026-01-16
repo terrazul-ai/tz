@@ -1,0 +1,12 @@
+version = 1
+
+[packages."@leourbina/general-coder"]
+version = "1.0.3"
+resolved = "https://26ac346086d4405f7a976d48747a2a75.r2.cloudflarestorage.com/terrazul-packages-prod/tarballs/leourbina/general-coder/1.0.3.tar.gz?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Checksum-Mode=ENABLED&X-Amz-Credential=f2bb550b03904218f4d4d15db478c903%2F20260115%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20260115T112711Z&X-Amz-Expires=3600&X-Amz-SignedHeaders=host&x-id=GetObject&X-Amz-Signature=ba37e6d7152a37c9cff3aa2b86090fff9763bad8a39bccdf911c59818b62048f"
+integrity = "sha256-tSFsvamiCB27C99j630ihjjaHyYMjPzHK0julSZp8vw="
+dependencies = { }
+yanked = false
+
+[metadata]
+generated_at = "2026-01-15T11:27:11.946Z"
+cli_version = "0.19.2"

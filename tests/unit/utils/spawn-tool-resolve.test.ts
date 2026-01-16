@@ -224,5 +224,69 @@ tool = "invalid"
         expect(result.type).toBe('claude');
       });
     });
+
+    describe('unsupported tool validation', () => {
+      it('rejects gemini tool from --tool flag with clear error', async () => {
+        const userConfig = createUserConfig([{ type: 'claude' }]);
+        await createManifest(tmpDir);
+
+        await expect(
+          resolveSpawnTool({
+            flagOverride: 'gemini' as 'claude' | 'codex',
+            projectRoot: tmpDir,
+            userConfig,
+          }),
+        ).rejects.toThrow(/Tool 'gemini' does not support interactive spawning/);
+      });
+
+      it('rejects gemini tool from manifest with clear error', async () => {
+        const toml = `
+[package]
+name = "@test/pkg"
+version = "1.0.0"
+tool = "gemini"
+`;
+        await fs.writeFile(path.join(tmpDir, 'agents.toml'), toml.trim());
+        const userConfig = createUserConfig([{ type: 'claude' }]);
+
+        await expect(
+          resolveSpawnTool({
+            projectRoot: tmpDir,
+            userConfig,
+          }),
+        ).rejects.toThrow(/Tool 'gemini' does not support interactive spawning/);
+      });
+
+      it('error message includes source for --tool flag', async () => {
+        const userConfig = createUserConfig([{ type: 'claude' }]);
+        await createManifest(tmpDir);
+
+        await expect(
+          resolveSpawnTool({
+            flagOverride: 'gemini' as 'claude' | 'codex',
+            projectRoot: tmpDir,
+            userConfig,
+          }),
+        ).rejects.toThrow(/--tool flag/);
+      });
+
+      it('error message includes source for manifest tool', async () => {
+        const toml = `
+[package]
+name = "@test/pkg"
+version = "1.0.0"
+tool = "gemini"
+`;
+        await fs.writeFile(path.join(tmpDir, 'agents.toml'), toml.trim());
+        const userConfig = createUserConfig([{ type: 'claude' }]);
+
+        await expect(
+          resolveSpawnTool({
+            projectRoot: tmpDir,
+            userConfig,
+          }),
+        ).rejects.toThrow(/agents\.toml \[package]\.tool/);
+      });
+    });
   });
 });
