@@ -262,28 +262,28 @@ describe('symlink-manager', () => {
       });
 
       it('should skip files for tools with no operational directories', async () => {
-        const pkgRoot = path.join(agentModulesDir, '@user', 'cursor-pkg');
-        const cursorAgentsDir = path.join(pkgRoot, 'cursor', 'agents');
-        await fs.mkdir(cursorAgentsDir, { recursive: true });
+        const pkgRoot = path.join(agentModulesDir, '@user', 'gemini-pkg');
+        const geminiAgentsDir = path.join(pkgRoot, 'gemini', 'agents');
+        await fs.mkdir(geminiAgentsDir, { recursive: true });
 
-        await fs.writeFile(path.join(cursorAgentsDir, 'agent.md'), '# Cursor Agent');
+        await fs.writeFile(path.join(geminiAgentsDir, 'agent.md'), '# Gemini Agent');
 
         const renderedFiles = [
           {
-            pkgName: '@user/cursor-pkg',
-            source: path.join(cursorAgentsDir, 'agent.md'),
-            tool: 'cursor' as const, // cursor has no operational dirs
+            pkgName: '@user/gemini-pkg',
+            source: path.join(geminiAgentsDir, 'agent.md'),
+            tool: 'gemini' as const, // gemini has no operational dirs
             isMcpConfig: false,
           },
         ];
 
         const result = await createSymlinks({
           projectRoot: tmpDir,
-          packages: ['@user/cursor-pkg'],
+          packages: ['@user/gemini-pkg'],
           renderedFiles,
         });
 
-        // No symlinks created (cursor has empty operational dirs)
+        // No symlinks created (gemini has empty operational dirs)
         expect(result.created).toHaveLength(0);
       });
     });
@@ -823,7 +823,6 @@ describe('symlink-manager', () => {
         projectRoot: tmpDir,
         packages: ['@user/pkg-a', '@user/pkg-b'],
         renderedFiles: allRenderedFiles,
-        activeTool: 'claude',
       });
 
       // Verify both symlinks exist
@@ -845,7 +844,6 @@ describe('symlink-manager', () => {
         projectRoot: tmpDir,
         packages: ['@user/pkg-a'],
         renderedFiles: pkgARenderedFiles,
-        activeTool: 'claude',
         exclusive: true,
       });
 
@@ -902,7 +900,6 @@ describe('symlink-manager', () => {
         projectRoot: tmpDir,
         packages: ['@user/pkg-a', '@user/pkg-b', '@user/pkg-c'],
         renderedFiles: allRenderedFiles,
-        activeTool: 'claude',
       });
 
       // Run exclusive for pkg-a and pkg-b
@@ -925,7 +922,6 @@ describe('symlink-manager', () => {
         projectRoot: tmpDir,
         packages: ['@user/pkg-a', '@user/pkg-b'],
         renderedFiles: abRenderedFiles,
-        activeTool: 'claude',
         exclusive: true,
       });
 
@@ -960,7 +956,6 @@ describe('symlink-manager', () => {
         projectRoot: tmpDir,
         packages: ['@user/pkg-a'],
         renderedFiles: pkgARenderedFiles,
-        activeTool: 'claude',
       });
 
       // Setup: Create package B
@@ -983,7 +978,6 @@ describe('symlink-manager', () => {
         projectRoot: tmpDir,
         packages: ['@user/pkg-b'],
         renderedFiles: pkgBRenderedFiles,
-        activeTool: 'claude',
         // exclusive: false (default)
       });
 
@@ -996,91 +990,86 @@ describe('symlink-manager', () => {
       expect(agentsSymlinks).toContain('@user-pkg-b-agent-b.md');
     });
 
-    it('should only remove symlinks for current tool when exclusive is true', async () => {
-      // Setup: Create packages for both Claude and Codex
-      // Note: All symlinks go to .claude/ but are distinguished by tool in registry
-      const claudePkgRoot = path.join(agentModulesDir, '@user', 'claude-pkg');
-      const codexPkgRoot = path.join(agentModulesDir, '@user', 'codex-pkg');
-      const claudeAgentsDir = path.join(claudePkgRoot, 'claude', 'agents');
-      const codexAgentsDir = path.join(codexPkgRoot, 'codex', 'agents');
+    it('should remove all non-target package symlinks when exclusive is true', async () => {
+      // Setup: Create two Claude packages with agents
+      const pkgARoot = path.join(agentModulesDir, '@user', 'pkg-a');
+      const pkgBRoot = path.join(agentModulesDir, '@user', 'pkg-b');
+      const pkgAAgentsDir = path.join(pkgARoot, 'claude', 'agents');
+      const pkgBAgentsDir = path.join(pkgBRoot, 'claude', 'agents');
 
-      await fs.mkdir(claudeAgentsDir, { recursive: true });
-      await fs.mkdir(codexAgentsDir, { recursive: true });
+      await fs.mkdir(pkgAAgentsDir, { recursive: true });
+      await fs.mkdir(pkgBAgentsDir, { recursive: true });
 
-      await fs.writeFile(path.join(claudeAgentsDir, 'claude-agent.md'), '# Claude Agent');
-      await fs.writeFile(path.join(codexAgentsDir, 'codex-agent.md'), '# Codex Agent');
+      await fs.writeFile(path.join(pkgAAgentsDir, 'agent-a.md'), '# Agent A');
+      await fs.writeFile(path.join(pkgBAgentsDir, 'agent-b.md'), '# Agent B');
 
-      // Create Claude symlinks (in .claude/)
+      // Create symlinks for pkg-a
       await createSymlinks({
         projectRoot: tmpDir,
-        packages: ['@user/claude-pkg'],
+        packages: ['@user/pkg-a'],
         renderedFiles: [
           {
-            pkgName: '@user/claude-pkg',
-            source: path.join(claudeAgentsDir, 'claude-agent.md'),
+            pkgName: '@user/pkg-a',
+            source: path.join(pkgAAgentsDir, 'agent-a.md'),
             tool: 'claude' as const,
             isMcpConfig: false,
           },
         ],
-        activeTool: 'claude',
       });
 
-      // Create Codex symlinks (also in .claude/, but with tool: 'codex' in registry)
+      // Create symlinks for pkg-b
       await createSymlinks({
         projectRoot: tmpDir,
-        packages: ['@user/codex-pkg'],
+        packages: ['@user/pkg-b'],
         renderedFiles: [
           {
-            pkgName: '@user/codex-pkg',
-            source: path.join(codexAgentsDir, 'codex-agent.md'),
-            tool: 'codex' as const,
+            pkgName: '@user/pkg-b',
+            source: path.join(pkgBAgentsDir, 'agent-b.md'),
+            tool: 'claude' as const,
             isMcpConfig: false,
           },
         ],
-        activeTool: 'codex',
       });
 
-      // Verify both symlinks exist in .claude/agents/
+      // Verify both symlinks exist
       let agentsSymlinks = await fs.readdir(path.join(claudeDir, 'agents'));
-      expect(agentsSymlinks).toContain('@user-claude-pkg-claude-agent.md');
-      expect(agentsSymlinks).toContain('@user-codex-pkg-codex-agent.md');
+      expect(agentsSymlinks).toContain('@user-pkg-a-agent-a.md');
+      expect(agentsSymlinks).toContain('@user-pkg-b-agent-b.md');
 
-      // Now create new Claude package with exclusive mode
-      const newClaudePkgRoot = path.join(agentModulesDir, '@user', 'new-claude-pkg');
-      const newClaudeAgentsDir = path.join(newClaudePkgRoot, 'claude', 'agents');
-      await fs.mkdir(newClaudeAgentsDir, { recursive: true });
-      await fs.writeFile(path.join(newClaudeAgentsDir, 'new-agent.md'), '# New Agent');
+      // Now create new package with exclusive mode
+      const newPkgRoot = path.join(agentModulesDir, '@user', 'new-pkg');
+      const newPkgAgentsDir = path.join(newPkgRoot, 'claude', 'agents');
+      await fs.mkdir(newPkgAgentsDir, { recursive: true });
+      await fs.writeFile(path.join(newPkgAgentsDir, 'new-agent.md'), '# New Agent');
 
       const result = await createSymlinks({
         projectRoot: tmpDir,
-        packages: ['@user/new-claude-pkg'],
+        packages: ['@user/new-pkg'],
         renderedFiles: [
           {
-            pkgName: '@user/new-claude-pkg',
-            source: path.join(newClaudeAgentsDir, 'new-agent.md'),
+            pkgName: '@user/new-pkg',
+            source: path.join(newPkgAgentsDir, 'new-agent.md'),
             tool: 'claude' as const,
             isMcpConfig: false,
           },
         ],
-        activeTool: 'claude',
         exclusive: true,
       });
 
-      // Old Claude symlink should be removed (it's for claude tool, not in target packages)
-      expect(result.removed).toHaveLength(1);
-      expect(result.removed[0]).toContain('@user-claude-pkg-claude-agent.md');
+      // Both old symlinks should be removed (not in target packages)
+      expect(result.removed).toHaveLength(2);
+      expect(result.removed.some((p) => p.includes('@user-pkg-a-agent-a.md'))).toBe(true);
+      expect(result.removed.some((p) => p.includes('@user-pkg-b-agent-b.md'))).toBe(true);
 
-      // Check final state in .claude/agents/
+      // Check final state
       agentsSymlinks = await fs.readdir(path.join(claudeDir, 'agents'));
 
-      // New Claude symlink should exist
-      expect(agentsSymlinks).toContain('@user-new-claude-pkg-new-agent.md');
+      // New symlink should exist
+      expect(agentsSymlinks).toContain('@user-new-pkg-new-agent.md');
 
-      // Old Claude symlink should be removed
-      expect(agentsSymlinks).not.toContain('@user-claude-pkg-claude-agent.md');
-
-      // Codex symlink should be unaffected (different tool in registry)
-      expect(agentsSymlinks).toContain('@user-codex-pkg-codex-agent.md');
+      // Old symlinks should be removed
+      expect(agentsSymlinks).not.toContain('@user-pkg-a-agent-a.md');
+      expect(agentsSymlinks).not.toContain('@user-pkg-b-agent-b.md');
     });
 
     it('should update registry correctly when removing symlinks in exclusive mode', async () => {
@@ -1114,7 +1103,6 @@ describe('symlink-manager', () => {
             isMcpConfig: false,
           },
         ],
-        activeTool: 'claude',
       });
 
       // Run exclusive for pkg-a
@@ -1129,7 +1117,6 @@ describe('symlink-manager', () => {
             isMcpConfig: false,
           },
         ],
-        activeTool: 'claude',
         exclusive: true,
       });
 
@@ -1175,7 +1162,6 @@ describe('symlink-manager', () => {
             isMcpConfig: false,
           },
         ],
-        activeTool: 'claude',
       });
 
       // Verify both skill symlinks exist
@@ -1195,7 +1181,6 @@ describe('symlink-manager', () => {
             isMcpConfig: false,
           },
         ],
-        activeTool: 'claude',
         exclusive: true,
       });
 
