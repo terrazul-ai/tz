@@ -55,6 +55,11 @@ export interface CreateSymlinksOptions {
    * Active tool to create symlinks for (default: 'claude')
    */
   activeTool?: ToolType;
+  /**
+   * When true, remove symlinks from packages NOT in the target list.
+   * Use this for exclusive package runs (e.g., tz run @scope/pkg).
+   */
+  exclusive?: boolean;
 }
 
 /**
@@ -180,6 +185,52 @@ async function createSkillDirectorySymlink(options: {
 }
 
 /**
+ * Remove symlinks from packages NOT in the target list
+ * Only removes symlinks for the active tool
+ *
+ * @param projectRoot - Project root directory
+ * @param registry - Symlink registry (will be mutated)
+ * @param targetPackages - Packages to keep symlinks for
+ * @param activeTool - Current active tool
+ * @returns List of removed symlink paths
+ */
+async function removeNonTargetSymlinks(
+  projectRoot: string,
+  registry: SymlinkRegistry,
+  targetPackages: string[],
+  activeTool: ToolType,
+): Promise<string[]> {
+  const removed: string[] = [];
+
+  // Find symlinks to remove: those from packages NOT in target list AND for active tool
+  const toRemove: string[] = [];
+  for (const [symlinkPath, info] of Object.entries(registry.symlinks)) {
+    if (!targetPackages.includes(info.package) && info.tool === activeTool) {
+      toRemove.push(symlinkPath);
+    }
+  }
+
+  // Remove each symlink
+  for (const relPath of toRemove) {
+    const absPath = path.join(projectRoot, relPath);
+
+    try {
+      if (exists(absPath)) {
+        await fs.rm(absPath, { recursive: true, force: true });
+        removed.push(absPath);
+      }
+
+      // Remove from registry
+      delete registry.symlinks[relPath];
+    } catch {
+      // Continue on error - we'll try to remove what we can
+    }
+  }
+
+  return removed;
+}
+
+/**
  * Create namespaced symlinks from agent_modules to .claude/ directories
  * Uses rendered files metadata to determine which files to symlink
  * Filters out CLAUDE.md/AGENTS.md (those are @-mentioned) and MCP configs
@@ -187,6 +238,7 @@ async function createSkillDirectorySymlink(options: {
 export async function createSymlinks(options: CreateSymlinksOptions): Promise<{
   created: string[];
   skipped: string[];
+  removed: string[];
   errors: Array<{ path: string; error: string }>;
 }> {
   const {
@@ -195,6 +247,7 @@ export async function createSymlinks(options: CreateSymlinksOptions): Promise<{
     dryRun = false,
     renderedFiles = [],
     activeTool = 'claude',
+    exclusive = false,
   } = options;
   const registryPath = options.registryPath ?? path.join(projectRoot, '.terrazul', 'symlinks.json');
 
@@ -203,6 +256,7 @@ export async function createSymlinks(options: CreateSymlinksOptions): Promise<{
   const created: string[] = [];
   const skipped: string[] = [];
   const errors: Array<{ path: string; error: string }> = [];
+  let removed: string[] = [];
 
   // Load existing registry
   let registry: SymlinkRegistry = { symlinks: {} };
@@ -214,6 +268,11 @@ export async function createSymlinks(options: CreateSymlinksOptions): Promise<{
       // Invalid or missing registry, start fresh
       registry = { symlinks: {} };
     }
+  }
+
+  // In exclusive mode, remove symlinks from non-target packages first
+  if (exclusive && packages && packages.length > 0 && !dryRun) {
+    removed = await removeNonTargetSymlinks(projectRoot, registry, packages, activeTool);
   }
 
   // Filter rendered files by:
@@ -344,12 +403,15 @@ export async function createSymlinks(options: CreateSymlinksOptions): Promise<{
   }
 
   // Save registry
-  if (!dryRun && (created.length > 0 || Object.keys(registry.symlinks).length > 0)) {
+  if (
+    !dryRun &&
+    (created.length > 0 || removed.length > 0 || Object.keys(registry.symlinks).length > 0)
+  ) {
     await fs.mkdir(path.dirname(registryPath), { recursive: true });
     await fs.writeFile(registryPath, JSON.stringify(registry, null, 2), 'utf8');
   }
 
-  return { created, skipped, errors };
+  return { created, skipped, removed, errors };
 }
 
 /**

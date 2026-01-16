@@ -486,6 +486,9 @@ async function handleContextInjection(
 
 /**
  * Create symlinks for operational files (agents/, commands/, hooks/, skills/)
+ *
+ * @param exclusive - When true, removes symlinks from packages NOT in the target list.
+ *                    Use this for specific package runs or profile runs.
  */
 async function handleSymlinkCreation(
   ctx: CLIContext,
@@ -493,6 +496,7 @@ async function handleSymlinkCreation(
   packages: string[],
   renderedFiles: Awaited<ReturnType<typeof planAndRender>>['renderedFiles'],
   toolOverride: 'claude' | 'codex' | 'cursor' | 'copilot' | undefined,
+  exclusive: boolean = false,
 ): Promise<void> {
   // Skip if no packages
   if (packages.length === 0) {
@@ -504,7 +508,21 @@ async function handleSymlinkCreation(
     packages,
     renderedFiles,
     activeTool: toolOverride ?? 'claude',
+    exclusive,
   });
+
+  // Log removed symlinks (exclusive mode)
+  if (symlinkResult.removed.length > 0) {
+    ctx.logger.info(
+      `Removed ${symlinkResult.removed.length} symlink(s) from other packages (exclusive mode)`,
+    );
+    if (ctx.logger.isVerbose()) {
+      for (const link of symlinkResult.removed) {
+        const relPath = path.relative(projectRoot, link);
+        ctx.logger.debug(`  removed: ${relPath}`);
+      }
+    }
+  }
 
   // Log created symlinks
   if (symlinkResult.created.length > 0) {
@@ -833,6 +851,10 @@ export function registerRunCommand(
           // Discover packages for rendering, symlinks, and MCP config
           const packages = await discoverPackagesForMCP(projectRoot, packageName, profileName);
 
+          // Determine exclusive mode: when a specific package or profile is specified,
+          // only those package's symlinks should be present (remove others)
+          const exclusiveMode = Boolean(packageName || profileName);
+
           // Create symlinks for operational files
           await handleSymlinkCreation(
             ctx,
@@ -840,6 +862,7 @@ export function registerRunCommand(
             packages,
             result.renderedFiles,
             renderOpts.toolOverride,
+            exclusiveMode,
           );
 
           // Prepare MCP config
