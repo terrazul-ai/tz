@@ -1,6 +1,6 @@
 /**
  * Symlink Manager
- * Handles creating and tracking symlinks from agent_modules to .claude/
+ * Handles creating and tracking symlinks from agent_modules to tool-specific directories
  */
 
 import { promises as fs } from 'node:fs';
@@ -9,6 +9,26 @@ import path from 'node:path';
 import { createSymlink, exists } from '../utils/fs.js';
 
 import type { ToolType } from '../types/context.js';
+
+/**
+ * Root directories for each tool type where operational files are symlinked
+ */
+export const TOOL_ROOT_DIRECTORIES: Record<ToolType, string> = {
+  claude: '.claude',
+  codex: '.codex',
+  gemini: '.gemini',
+};
+
+/**
+ * Operational directories supported by each tool type.
+ * - Claude: agents, commands, skills
+ * - Codex: skills only (Codex uses AGENTS.md for context, skills for slash commands)
+ */
+export const TOOL_OPERATIONAL_DIRS: Record<ToolType, string[]> = {
+  claude: ['agents', 'commands', 'skills'],
+  codex: ['skills'],
+  gemini: [],
+};
 
 export interface RenderedFile {
   pkgName: string;
@@ -51,10 +71,6 @@ export interface CreateSymlinksOptions {
    * Rendered files metadata (contains tool, isMcpConfig info)
    */
   renderedFiles?: RenderedFile[];
-  /**
-   * Active tool to create symlinks for (default: 'claude')
-   */
-  activeTool?: ToolType;
   /**
    * When true, remove symlinks from packages NOT in the target list.
    * Use this for exclusive package runs (e.g., tz run @scope/pkg).
@@ -102,7 +118,7 @@ function findSkillRootDirectory(
  *
  * @param symlinkPath - Absolute path to the symlink
  * @param sourceDir - Absolute path to the source directory/file
- * @param activeTool - Current active tool
+ * @param tool - Tool type for this file
  * @param projectRoot - Project root directory
  * @param registry - Symlink registry
  * @returns true if should skip, false if should create
@@ -110,7 +126,7 @@ function findSkillRootDirectory(
 function shouldSkipSymlink(
   symlinkPath: string,
   sourceDir: string,
-  activeTool: ToolType,
+  tool: ToolType,
   projectRoot: string,
   registry: SymlinkRegistry,
 ): boolean {
@@ -120,7 +136,7 @@ function shouldSkipSymlink(
   return (
     registryEntry !== undefined &&
     registryEntry.source === sourceDir &&
-    registryEntry.tool === activeTool &&
+    registryEntry.tool === tool &&
     exists(symlinkPath)
   );
 }
@@ -134,25 +150,24 @@ async function createSkillDirectorySymlink(options: {
   pkgName: string;
   skillDir: string;
   skillName: string;
-  claudeRoot: string;
+  toolRoot: string;
   projectRoot: string;
   registry: SymlinkRegistry;
-  activeTool: ToolType;
+  tool: ToolType;
   dryRun: boolean;
 }): Promise<{
   created?: string;
   skipped?: string;
   error?: { path: string; error: string };
 }> {
-  const { pkgName, skillDir, skillName, claudeRoot, projectRoot, registry, activeTool, dryRun } =
-    options;
+  const { pkgName, skillDir, skillName, toolRoot, projectRoot, registry, tool, dryRun } = options;
 
   // Generate namespaced symlink path for the directory
   const namespacedName = generateNamespacedPath(pkgName, skillName, true);
-  const symlinkPath = path.join(claudeRoot, 'skills', namespacedName);
+  const symlinkPath = path.join(toolRoot, 'skills', namespacedName);
 
   // Check if symlink already exists and points to same source
-  if (shouldSkipSymlink(symlinkPath, skillDir, activeTool, projectRoot, registry)) {
+  if (shouldSkipSymlink(symlinkPath, skillDir, tool, projectRoot, registry)) {
     return { skipped: symlinkPath };
   }
 
@@ -169,7 +184,7 @@ async function createSkillDirectorySymlink(options: {
     registry.symlinks[relSymlinkPath] = {
       package: pkgName,
       source: skillDir,
-      tool: activeTool,
+      tool,
       created: new Date().toISOString(),
     };
 
@@ -186,26 +201,24 @@ async function createSkillDirectorySymlink(options: {
 
 /**
  * Remove symlinks from packages NOT in the target list
- * Only removes symlinks for the active tool
+ * Removes symlinks across all tool directories (multi-tool aware)
  *
  * @param projectRoot - Project root directory
  * @param registry - Symlink registry (will be mutated)
  * @param targetPackages - Packages to keep symlinks for
- * @param activeTool - Current active tool
  * @returns List of removed symlink paths
  */
 async function removeNonTargetSymlinks(
   projectRoot: string,
   registry: SymlinkRegistry,
   targetPackages: string[],
-  activeTool: ToolType,
 ): Promise<string[]> {
   const removed: string[] = [];
 
-  // Find symlinks to remove: those from packages NOT in target list AND for active tool
+  // Find symlinks to remove: those from packages NOT in target list (across all tools)
   const toRemove: string[] = [];
   for (const [symlinkPath, info] of Object.entries(registry.symlinks)) {
-    if (!targetPackages.includes(info.package) && info.tool === activeTool) {
+    if (!targetPackages.includes(info.package)) {
       toRemove.push(symlinkPath);
     }
   }
@@ -231,8 +244,8 @@ async function removeNonTargetSymlinks(
 }
 
 /**
- * Create namespaced symlinks from agent_modules to .claude/ directories
- * Uses rendered files metadata to determine which files to symlink
+ * Create namespaced symlinks from agent_modules to tool-specific directories
+ * Routes each file to its correct tool directory based on file.tool property
  * Filters out CLAUDE.md/AGENTS.md (those are @-mentioned) and MCP configs
  */
 export async function createSymlinks(options: CreateSymlinksOptions): Promise<{
@@ -241,17 +254,8 @@ export async function createSymlinks(options: CreateSymlinksOptions): Promise<{
   removed: string[];
   errors: Array<{ path: string; error: string }>;
 }> {
-  const {
-    projectRoot,
-    packages,
-    dryRun = false,
-    renderedFiles = [],
-    activeTool = 'claude',
-    exclusive = false,
-  } = options;
+  const { projectRoot, packages, dryRun = false, renderedFiles = [], exclusive = false } = options;
   const registryPath = options.registryPath ?? path.join(projectRoot, '.terrazul', 'symlinks.json');
-
-  const claudeRoot = path.join(projectRoot, '.claude');
 
   const created: string[] = [];
   const skipped: string[] = [];
@@ -270,30 +274,24 @@ export async function createSymlinks(options: CreateSymlinksOptions): Promise<{
     }
   }
 
-  // In exclusive mode, remove symlinks from non-target packages first
+  // In exclusive mode, remove symlinks from non-target packages first (across all tools)
   if (exclusive && packages && packages.length > 0 && !dryRun) {
-    removed = await removeNonTargetSymlinks(projectRoot, registry, packages, activeTool);
+    removed = await removeNonTargetSymlinks(projectRoot, registry, packages);
   }
 
-  // Filter rendered files by:
-  // 1. Active tool only
-  // 2. Specified packages (if provided)
-  // 3. Not MCP configs
-  let filesToProcess = renderedFiles.filter((f) => f.tool === activeTool);
-
+  // Filter rendered files by specified packages (if provided)
+  // Each file goes to its own tool directory based on file.tool property
+  let filesToProcess = renderedFiles;
   if (packages && packages.length > 0) {
     filesToProcess = filesToProcess.filter((f) => packages.includes(f.pkgName));
   }
-
-  // Directories to check for symlinkable files (hooks excluded - not supported by Claude)
-  const operationalDirs = ['agents', 'commands', 'skills'];
 
   // Track skill directories we've already processed to avoid duplicates
   // Key: skillDir absolute path, Value: true (processed)
   const processedSkillDirs = new Map<string, boolean>();
 
   for (const file of filesToProcess) {
-    const { pkgName, source, isMcpConfig } = file;
+    const { pkgName, source, tool, isMcpConfig } = file;
 
     // Skip MCP configs (passed via metadata)
     if (isMcpConfig) {
@@ -305,6 +303,16 @@ export async function createSymlinks(options: CreateSymlinksOptions): Promise<{
     const basename = path.basename(source);
     if (basename === 'CLAUDE.md' || basename === 'AGENTS.md') {
       skipped.push(source);
+      continue;
+    }
+
+    // Get tool-specific root and operational dirs for this file
+    const toolRootName = TOOL_ROOT_DIRECTORIES[tool] ?? '.claude';
+    const toolRoot = path.join(projectRoot, toolRootName);
+    const operationalDirs = TOOL_OPERATIONAL_DIRS[tool] ?? [];
+
+    // Skip files for tools with no operational directories
+    if (operationalDirs.length === 0) {
       continue;
     }
 
@@ -346,10 +354,10 @@ export async function createSymlinks(options: CreateSymlinksOptions): Promise<{
         pkgName,
         skillDir,
         skillName,
-        claudeRoot,
+        toolRoot,
         projectRoot,
         registry,
-        activeTool,
+        tool,
         dryRun,
       });
 
@@ -363,13 +371,13 @@ export async function createSymlinks(options: CreateSymlinksOptions): Promise<{
     // For non-skill files (agents, commands): create file symlinks as before
     // Generate namespaced symlink path
     const namespacedName = generateNamespacedPath(pkgName, basename, false);
-    const symlinkPath = path.join(claudeRoot, targetDirName, namespacedName);
+    const symlinkPath = path.join(toolRoot, targetDirName, namespacedName);
 
     // Check if symlink already exists and points to same source
     const relSymlinkPath = path.relative(projectRoot, symlinkPath);
     if (
       registry.symlinks[relSymlinkPath]?.source === source &&
-      registry.symlinks[relSymlinkPath]?.tool === activeTool && // Verify symlink actually exists on disk before skipping
+      registry.symlinks[relSymlinkPath]?.tool === tool && // Verify symlink actually exists on disk before skipping
       exists(symlinkPath)
     ) {
       skipped.push(symlinkPath);
@@ -388,7 +396,7 @@ export async function createSymlinks(options: CreateSymlinksOptions): Promise<{
         registry.symlinks[relSymlinkPath] = {
           package: pkgName,
           source,
-          tool: activeTool,
+          tool,
           created: new Date().toISOString(),
         };
 

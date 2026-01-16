@@ -1,0 +1,196 @@
+import { spawn } from 'node:child_process';
+import { promises as fs } from 'node:fs';
+
+import { ErrorCode, TerrazulError } from '../core/errors.js';
+
+import type { MCPConfig } from './claude-code.js';
+import type { ToolSpec } from '../types/context.js';
+
+export interface SpawnToolOptions {
+  tool: ToolSpec;
+  cwd: string;
+  mcpConfig?: MCPConfig;
+  mcpConfigPath?: string;
+  additionalArgs?: string[];
+}
+
+/**
+ * Spawn a tool (Claude Code or Codex) with the given options.
+ * Dispatches to tool-specific implementations based on tool.type.
+ */
+export async function spawnTool(options: SpawnToolOptions): Promise<number> {
+  const { tool } = options;
+
+  switch (tool.type) {
+    case 'claude': {
+      return spawnClaudeCodeInternal(options);
+    }
+    case 'codex': {
+      return spawnCodexInternal(options);
+    }
+    default: {
+      throw new TerrazulError(
+        ErrorCode.TOOL_NOT_FOUND,
+        `Tool '${tool.type}' does not support spawning. Use 'claude' or 'codex'.`,
+      );
+    }
+  }
+}
+
+/**
+ * Spawn Claude Code CLI with MCP config
+ */
+async function spawnClaudeCodeInternal(options: SpawnToolOptions): Promise<number> {
+  const { tool, cwd, mcpConfigPath, additionalArgs = [] } = options;
+
+  return new Promise((resolve, reject) => {
+    const command = tool.command ?? 'claude';
+    const args: string[] = [];
+
+    // Add MCP config if provided
+    if (mcpConfigPath) {
+      args.push('--mcp-config', mcpConfigPath, '--strict-mcp-config');
+    }
+
+    // Add model flag if specified (skip 'default' to use user's environment preference)
+    if (tool.model && tool.model !== 'default') {
+      args.push('--model', tool.model);
+    }
+
+    // Add any additional args
+    args.push(...additionalArgs);
+
+    const workingDir = cwd || process.cwd();
+
+    // Log the full command for debugging
+    console.log(`Executing: ${command} ${args.join(' ')}`);
+    console.log(`Working directory: ${workingDir}`);
+
+    const child = spawn(command, args, {
+      cwd: workingDir,
+      stdio: 'inherit',
+      shell: false,
+      env: { ...process.env, ...expandEnvVars(tool.env) },
+    });
+
+    child.on('error', (error) => {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+        reject(
+          new TerrazulError(
+            ErrorCode.TOOL_NOT_FOUND,
+            'Claude CLI not found. Install it from https://claude.ai/download',
+          ),
+        );
+      } else {
+        reject(error);
+      }
+    });
+
+    child.on('exit', (code) => {
+      resolve(code ?? 0);
+    });
+  });
+}
+
+/**
+ * Spawn Codex CLI with MCP config overrides.
+ * Note: We intentionally do NOT include tool.args here because those args
+ * (like 'exec') are for non-interactive prompt execution (askAgent).
+ * For interactive spawning, we just run 'codex' directly.
+ */
+async function spawnCodexInternal(options: SpawnToolOptions): Promise<number> {
+  const { tool, cwd, mcpConfig, additionalArgs = [] } = options;
+
+  return new Promise((resolve, reject) => {
+    const command = tool.command ?? 'codex';
+    const args: string[] = [];
+
+    // Note: We don't include tool.args here because 'exec' is for non-interactive
+    // prompt execution. For interactive spawning, just run 'codex' directly.
+
+    // Add model if specified
+    if (tool.model && tool.model !== 'default') {
+      args.push('--model', tool.model);
+    }
+
+    // Add MCP config overrides if present
+    if (mcpConfig && Object.keys(mcpConfig.mcpServers).length > 0) {
+      for (const [name, server] of Object.entries(mcpConfig.mcpServers)) {
+        args.push('-c', `mcp_servers.${name}.command=${server.command}`);
+        if (server.args && server.args.length > 0) {
+          args.push('-c', `mcp_servers.${name}.args=${JSON.stringify(server.args)}`);
+        }
+        if (server.env && Object.keys(server.env).length > 0) {
+          args.push('-c', `mcp_servers.${name}.env=${JSON.stringify(server.env)}`);
+        }
+      }
+    }
+
+    // Add any additional args
+    args.push(...additionalArgs);
+
+    const workingDir = cwd || process.cwd();
+
+    // Log the full command for debugging
+    console.log(`Executing: ${command} ${args.join(' ')}`);
+    console.log(`Working directory: ${workingDir}`);
+
+    const child = spawn(command, args, {
+      cwd: workingDir,
+      stdio: 'inherit',
+      shell: false,
+      env: { ...process.env, ...expandEnvVars(tool.env) },
+    });
+
+    child.on('error', (error) => {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+        reject(
+          new TerrazulError(
+            ErrorCode.TOOL_NOT_FOUND,
+            'Codex CLI not found. Install it from https://github.com/openai/codex',
+          ),
+        );
+      } else {
+        reject(error);
+      }
+    });
+
+    child.on('exit', (code) => {
+      resolve(code ?? 0);
+    });
+  });
+}
+
+/**
+ * Expand environment variable references in tool env config.
+ * Supports "env:NAME" syntax to resolve at spawn time.
+ */
+function expandEnvVars(env?: Record<string, string>): Record<string, string> {
+  if (!env) return {};
+
+  const result: Record<string, string> = {};
+  for (const [key, value] of Object.entries(env)) {
+    if (value.startsWith('env:')) {
+      const envName = value.slice(4);
+      const envValue = process.env[envName];
+      if (envValue !== undefined) {
+        result[key] = envValue;
+      }
+    } else {
+      result[key] = value;
+    }
+  }
+  return result;
+}
+
+/**
+ * Load MCP config from a JSON file
+ */
+export async function loadMCPConfig(configPath: string): Promise<MCPConfig> {
+  try {
+    const content = await fs.readFile(configPath, 'utf8');
+    return JSON.parse(content) as MCPConfig;
+  } catch {
+    return { mcpServers: {} };
+  }
+}

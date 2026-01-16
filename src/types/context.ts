@@ -1,4 +1,4 @@
-export type ToolType = 'claude' | 'codex' | 'cursor' | 'copilot';
+export type ToolType = 'claude' | 'codex' | 'gemini';
 
 export interface ToolSpec {
   type: ToolType;
@@ -17,8 +17,7 @@ export interface ProfileConfig {
 export interface ContextFilesMap {
   claude?: string;
   codex?: string;
-  cursor?: string;
-  copilot?: string;
+  gemini?: string;
 }
 
 export interface ContextConfig {

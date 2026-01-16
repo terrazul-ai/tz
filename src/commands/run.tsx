@@ -13,18 +13,20 @@ import {
   aggregateMCPConfigs,
   cleanupMCPConfig,
   generateMCPConfigFile,
-  spawnClaudeCode,
 } from '../integrations/claude-code.js';
 import { createSymlinks } from '../integrations/symlink-manager.js';
+import { loadMCPConfig, spawnTool } from '../integrations/tool-spawner.js';
 import { AskAgentSpinner, type AskAgentTask } from '../ui/apply/AskAgentSpinner.js';
 import { generateAskAgentSummary } from '../utils/ask-agent-summary.js';
 import { injectPackageContext, type PackageInfo } from '../utils/context-file-injector.js';
 import { ensureDir } from '../utils/fs.js';
 import { addOrUpdateDependency, readManifest } from '../utils/manifest.js';
 import { agentModulesPath, isFilesystemPath, resolvePathSpec } from '../utils/path.js';
+import { resolveSpawnTool } from '../utils/spawn-tool-resolve.js';
 import { normalizeToolOption } from '../utils/tool-options.js';
 
 import type { SnippetProgress } from '../core/template-renderer.js';
+import type { ToolSpec } from '../types/context.js';
 import type { CLIContext } from '../utils/context.js';
 import type { Command } from 'commander';
 import type { Instance } from 'ink';
@@ -318,20 +320,23 @@ async function ensurePackageInstalled(
  * Options for template rendering
  */
 interface RenderingOptions {
-  toolOverride: 'claude' | 'codex' | 'cursor' | 'copilot' | undefined;
+  /** Resolved tool type for rendering (from resolveSpawnTool) */
+  resolvedTool: 'claude' | 'codex' | 'gemini';
   toolSafeMode: boolean;
   force: boolean;
   localPackagePaths?: Map<string, string>;
 }
 
 /**
- * Prepare rendering options from command options and resolved package
+ * Prepare rendering options from command options and resolved package.
+ * NOTE: resolvedToolType should be obtained from resolveSpawnTool to ensure
+ * consistent tool selection between rendering and spawning.
  */
 function prepareRenderingOptions(
-  opts: { tool?: string; toolSafeMode?: boolean; force?: boolean },
+  opts: { toolSafeMode?: boolean; force?: boolean },
   resolved: ResolvedPackage | null,
+  resolvedToolType: 'claude' | 'codex' | 'gemini',
 ): RenderingOptions {
-  const toolOverride = normalizeToolOption(opts.tool);
   const toolSafeMode = opts.toolSafeMode ?? true;
 
   // Local packages should always force re-render to reflect latest changes
@@ -344,7 +349,7 @@ function prepareRenderingOptions(
       : undefined;
 
   return {
-    toolOverride,
+    resolvedTool: resolvedToolType,
     toolSafeMode,
     force,
     localPackagePaths,
@@ -372,7 +377,7 @@ async function executeRendering(
       force: renderOpts.force,
       packageName,
       profileName,
-      tool: renderOpts.toolOverride,
+      tool: renderOpts.resolvedTool,
       toolSafeMode: renderOpts.toolSafeMode,
       verbose: ctx.logger.isVerbose(),
       onSnippetEvent: spinner.onSnippetEvent,
@@ -486,6 +491,7 @@ async function handleContextInjection(
 
 /**
  * Create symlinks for operational files (agents/, commands/, hooks/, skills/)
+ * Routes each file to its correct tool directory based on file.tool property
  *
  * @param exclusive - When true, removes symlinks from packages NOT in the target list.
  *                    Use this for specific package runs or profile runs.
@@ -495,7 +501,6 @@ async function handleSymlinkCreation(
   projectRoot: string,
   packages: string[],
   renderedFiles: Awaited<ReturnType<typeof planAndRender>>['renderedFiles'],
-  toolOverride: 'claude' | 'codex' | 'cursor' | 'copilot' | undefined,
   exclusive: boolean = false,
 ): Promise<void> {
   // Skip if no packages
@@ -507,7 +512,6 @@ async function handleSymlinkCreation(
     projectRoot,
     packages,
     renderedFiles,
-    activeTool: toolOverride ?? 'claude',
     exclusive,
   });
 
@@ -526,7 +530,7 @@ async function handleSymlinkCreation(
 
   // Log created symlinks
   if (symlinkResult.created.length > 0) {
-    ctx.logger.info(`Created ${symlinkResult.created.length} symlink(s) in .claude/ directories`);
+    ctx.logger.info(`Created ${symlinkResult.created.length} symlink(s)`);
     if (ctx.logger.isVerbose()) {
       for (const link of symlinkResult.created) {
         const relPath = path.relative(projectRoot, link);
@@ -581,37 +585,43 @@ async function prepareMCPConfig(
 }
 
 /**
- * Spawn Claude Code with MCP config or skip in non-interactive mode
+ * Spawn the resolved tool with MCP config or skip in non-interactive mode.
+ * The tool spec should be pre-resolved using resolveSpawnTool to ensure
+ * consistent tool selection between rendering and spawning.
  */
-async function spawnClaudeCodeWithConfig(
+async function spawnToolWithConfig(
   ctx: CLIContext,
   projectRoot: string,
   mcpResult: MCPConfigResult,
+  tool: ToolSpec,
 ): Promise<number> {
-  // Skip spawning Claude Code in non-interactive environments (tests, CI)
+  // Skip spawning tool in non-interactive environments (tests, CI)
   const skipSpawn = process.env.TZ_SKIP_SPAWN === 'true' || !process.stdout.isTTY;
 
   if (skipSpawn) {
     ctx.logger.info(
-      `Rendered templates with ${mcpResult.serverCount} MCP server(s). Skipping Claude Code launch (non-interactive).`,
+      `Rendered templates with ${mcpResult.serverCount} MCP server(s). Skipping tool launch (non-interactive).`,
     );
     return 0;
   }
 
   // Log launch message
   if (mcpResult.serverCount > 0) {
-    ctx.logger.info(`Launching Claude Code with ${mcpResult.serverCount} MCP server(s)...`);
+    ctx.logger.info(`Launching ${tool.type} with ${mcpResult.serverCount} MCP server(s)...`);
   } else {
-    ctx.logger.info('Launching Claude Code...');
+    ctx.logger.info(`Launching ${tool.type}...`);
   }
 
-  // Get model from user config
-  const userConfig = await ctx.config.load();
-  const claudeTool = userConfig.profile?.tools?.find((t) => t.type === 'claude');
-  const model = claudeTool?.model;
+  // Load MCP config content for Codex (Claude uses file path)
+  const mcpConfig = await loadMCPConfig(mcpResult.configPath);
 
-  // Spawn Claude Code with MCP config
-  const exitCode = await spawnClaudeCode(mcpResult.configPath, [], projectRoot, model);
+  // Spawn the tool with MCP config
+  const exitCode = await spawnTool({
+    tool,
+    cwd: projectRoot,
+    mcpConfig,
+    mcpConfigPath: mcpResult.configPath,
+  });
 
   return exitCode;
 }
@@ -832,8 +842,17 @@ export function registerRunCommand(
           // Extract values for downstream use
           const packageName = resolved?.packageName;
 
-          // Prepare rendering options
-          const renderOpts = prepareRenderingOptions(opts, resolved);
+          // Resolve tool ONCE using precedence: CLI flag > project manifest > user config
+          // This ensures consistent tool selection between rendering and spawning
+          const userConfig = await ctx.config.load();
+          const toolSpec = await resolveSpawnTool({
+            flagOverride: normalizeToolOption(opts.tool),
+            projectRoot,
+            userConfig,
+          });
+
+          // Prepare rendering options using the resolved tool
+          const renderOpts = prepareRenderingOptions(opts, resolved, toolSpec.type);
 
           // Execute rendering with progress tracking
           const result = await executeRendering(
@@ -861,16 +880,15 @@ export function registerRunCommand(
             projectRoot,
             packages,
             result.renderedFiles,
-            renderOpts.toolOverride,
             exclusiveMode,
           );
 
           // Prepare MCP config
           const mcpResult = await prepareMCPConfig(ctx, projectRoot, agentModulesRoot, packages);
 
-          // Spawn Claude Code (with cleanup)
+          // Spawn tool (with cleanup) - uses the same resolved tool spec
           try {
-            const exitCode = await spawnClaudeCodeWithConfig(ctx, projectRoot, mcpResult);
+            const exitCode = await spawnToolWithConfig(ctx, projectRoot, mcpResult, toolSpec);
             await cleanupMCPConfig(mcpResult.configPath);
             process.exitCode = exitCode;
           } catch (error) {

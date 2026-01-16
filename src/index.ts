@@ -14,6 +14,7 @@ import { registerLoginCommand } from './commands/login.js';
 import { registerLogoutCommand } from './commands/logout.js';
 import { registerPublishCommand } from './commands/publish.js';
 import { registerRunCommand } from './commands/run.js';
+import { registerToolCommand } from './commands/tool.js';
 import { registerUninstallCommand } from './commands/uninstall.js';
 import { registerUnlinkCommand } from './commands/unlink.js';
 import { registerUnyankCommand } from './commands/unyank.js';
@@ -51,6 +52,7 @@ function buildProgram(argv: string[]): Command {
   registerUnlinkCommand(program, createCLIContext);
   registerValidateCommand(program, createCLIContext);
   registerApplyCommand(program, createCLIContext);
+  registerToolCommand(program, createCLIContext);
   // Top-level auth aliases - might remove auth top level later
   registerLoginCommand(program, createCLIContext);
   registerLogoutCommand(program, createCLIContext);

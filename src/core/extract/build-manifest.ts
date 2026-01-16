@@ -9,8 +9,7 @@ export interface ExportEntry {
 export interface ExportMap {
   codex?: ExportEntry;
   claude?: ExportEntry;
-  cursor?: ExportEntry;
-  copilot?: ExportEntry;
+  gemini?: ExportEntry;
   // Unknown tools allowed but not used here
   [key: string]: ExportEntry | undefined;
 }

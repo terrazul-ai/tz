@@ -124,7 +124,7 @@ export function sanitizeText(raw: string, projectRootAbs: string): string {
 
 export function resolveProjectRoot(fromDirAbs: string): string {
   const base = path.basename(fromDirAbs);
-  if (['.claude', '.codex', '.cursor', '.github'].includes(base)) {
+  if (['.claude', '.codex', '.gemini'].includes(base)) {
     return path.dirname(fromDirAbs);
   }
   return fromDirAbs;

@@ -32,7 +32,7 @@ interface AutomationPayload {
   dryRun?: boolean;
 }
 
-const VALID_TOOLS = new Set<ToolName>(['claude', 'codex', 'cursor', 'copilot']);
+const VALID_TOOLS = new Set<ToolName>(['claude', 'codex', 'gemini']);
 
 function applyAutomation(base: CreateOptions, payload: AutomationPayload | null): CreateOptions {
   if (!payload) return base;

@@ -42,11 +42,7 @@ describe('config: profile.tools + files', () => {
       file,
       JSON.stringify({
         profile: {
-          tools: [
-            { type: 'codex', command: 'codex', args: ['exec'] },
-            { type: 'cursor' },
-            { type: 'copilot' },
-          ],
+          tools: [{ type: 'codex', command: 'codex', args: ['exec'] }, { type: 'gemini' }],
         },
         context: { files: { claude: 'C.md' } },
       }),
@@ -57,11 +53,9 @@ describe('config: profile.tools + files', () => {
     // @ts-expect-error runtime assertion for defaults merge
     expect(cfg.context.files.claude).toBe('C.md');
     // @ts-expect-error runtime assertion for defaults merge
-    expect(cfg.context.files.cursor).toBe('.cursor/rules.mdc');
-    // @ts-expect-error runtime assertion for defaults merge
     expect(cfg.context.files.codex).toBe('AGENTS.md');
     // @ts-expect-error runtime assertion for defaults merge
-    expect(cfg.context.files.copilot).toBe('.github/copilot-instructions.md');
+    expect(cfg.context.files.gemini).toBe('GEMINI.md');
   });
 
   it('defaults Claude tool to Sonnet 4.5 model', async () => {

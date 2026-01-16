@@ -20,9 +20,6 @@ describe('tz extract (basic)', () => {
     });
     await proj.setClaudeMcp({ foo: { command: '/bin/echo', args: [path.join(pr, 'data')] } });
     await proj.addClaudeAgent('reviewer.md', `See ${pr}/README.md`);
-    await proj.addCursorRulesFile('01.md', 'rule A');
-    await proj.addCursorRulesFile('02.md', 'rule B');
-    await proj.addCopilot('be helpful');
 
     await run('node', [
       cli,
@@ -45,8 +42,8 @@ describe('tz extract (basic)', () => {
     expect(agentsToml).toMatch(/version = "1.0.0"/);
     expect(agentsToml).toMatch(/codex/);
     expect(agentsToml).toMatch(/claude/);
-    expect(agentsToml).toMatch(/cursor/);
-    expect(agentsToml).toMatch(/copilot/);
+    expect(agentsToml).not.toMatch(/cursor/);
+    expect(agentsToml).not.toMatch(/copilot/);
 
     const files = [
       path.join(out, 'templates', 'AGENTS.md.hbs'),
@@ -54,8 +51,6 @@ describe('tz extract (basic)', () => {
       path.join(out, 'templates', 'claude', 'settings.json.hbs'),
       path.join(out, 'templates', 'claude', 'mcp_servers.json.hbs'),
       path.join(out, 'templates', 'claude', 'agents', 'reviewer.md.hbs'),
-      path.join(out, 'templates', 'cursor.rules.hbs'),
-      path.join(out, 'templates', 'copilot.md.hbs'),
     ];
     for (const f of files) {
       await fs.stat(f);

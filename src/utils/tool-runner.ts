@@ -24,15 +24,13 @@ export interface ToolExecution {
 const SAFE_ARGS: Record<ToolType, string[]> = {
   claude: ['-p', '--output-format', 'json', '--permission-mode', 'plan', '--max-turns', '100'],
   codex: ['--sandbox', 'read-only'],
-  cursor: [],
-  copilot: [],
+  gemini: [],
 };
 
 const REQUIRED_ARGS: Record<ToolType, string[]> = {
   claude: ['-p', '--output-format', 'json'],
   codex: [],
-  cursor: [],
-  copilot: [],
+  gemini: [],
 };
 
 const SAFE_MODE_FLAG_OVERRIDES: Record<
@@ -46,8 +44,7 @@ const SAFE_MODE_FLAG_OVERRIDES: Record<
     { flag: '--max-turns', consumesValue: true },
   ],
   codex: [{ flag: '--sandbox', consumesValue: true }],
-  cursor: [],
-  copilot: [],
+  gemini: [],
 };
 
 function removeFlag(args: string[], flag: string, consumesValue: boolean): string[] {
@@ -285,11 +282,8 @@ export function defaultToolSpec(tool: ToolType): ToolSpec {
     case 'claude': {
       return { type: 'claude', command: 'claude', model: 'default' };
     }
-    case 'cursor': {
-      return { type: 'cursor', command: 'cursor-agent' };
-    }
-    case 'copilot': {
-      return { type: 'copilot', command: 'copilot' };
+    case 'gemini': {
+      return { type: 'gemini', command: 'gemini' };
     }
     default: {
       return { type: tool } as ToolSpec;

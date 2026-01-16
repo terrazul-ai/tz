@@ -9,8 +9,7 @@ describe('resolveProjectRoot', () => {
     const base = path.join('/tmp', 'proj');
     expect(resolveProjectRoot(path.join(base, '.claude'))).toBe(base);
     expect(resolveProjectRoot(path.join(base, '.codex'))).toBe(base);
-    expect(resolveProjectRoot(path.join(base, '.cursor'))).toBe(base);
-    expect(resolveProjectRoot(path.join(base, '.github'))).toBe(base);
+    expect(resolveProjectRoot(path.join(base, '.gemini'))).toBe(base);
   });
 
   it('returns given path otherwise', () => {

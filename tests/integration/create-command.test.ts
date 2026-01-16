@@ -31,7 +31,7 @@ describe('tz create command (automated)', () => {
     const automation = {
       description: 'Integration-created package',
       license: 'Apache-2.0',
-      tools: ['claude', 'codex', 'copilot'],
+      tools: ['claude', 'codex', 'gemini'],
       includeExamples: true,
       includeHooks: true,
       version: '0.0.0',
@@ -58,7 +58,7 @@ describe('tz create command (automated)', () => {
     expect(manifest).toContain('name = "@integration/demo-agents"');
     expect(manifest).toContain('[compatibility]');
     expect(manifest).toMatch(/claude\s*=\s*"\*"/);
-    expect(manifest).toMatch(/copilot\s*=\s*"\*"/);
+    expect(manifest).toMatch(/gemini\s*=\s*"\*"/);
     expect(manifest).toContain('[exports.claude]');
     expect(manifest).toContain('template = "templates/CLAUDE.md.hbs"');
     expect(manifest).toContain('[exports.codex]');
@@ -71,7 +71,7 @@ describe('tz create command (automated)', () => {
       fs.stat(path.join(createdDir, 'templates', 'AGENTS.md.hbs')),
     ).resolves.toBeTruthy();
     await expect(
-      fs.stat(path.join(createdDir, 'templates', 'COPILOT.md.hbs')),
+      fs.stat(path.join(createdDir, 'templates', 'GEMINI.md.hbs')),
     ).resolves.toBeTruthy();
     await expect(fs.stat(path.join(createdDir, 'templates'))).resolves.toBeTruthy();
     await expect(fs.stat(path.join(createdDir, 'hooks'))).resolves.toBeTruthy();
@@ -81,7 +81,7 @@ describe('tz create command (automated)', () => {
     const automation = {
       description: 'Dry run package',
       license: 'MIT',
-      tools: ['cursor'],
+      tools: ['gemini'],
       includeExamples: false,
       includeHooks: false,
       dryRun: true,

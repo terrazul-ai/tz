@@ -70,17 +70,9 @@ export class ProjectBuilder {
     return this;
   }
 
-  async addCursorRulesFile(name = 'rules.md', content = 'rule'): Promise<this> {
-    const abs = path.join(this.root, '.cursor', 'rules', name);
-    await this.ensureDir(path.dirname(abs));
-    await fs.writeFile(abs, content, 'utf8');
-    return this;
-  }
-
-  async addCopilot(content = 'copilot rules'): Promise<this> {
-    const abs = path.join(this.root, '.github', 'copilot-instructions.md');
-    await this.ensureDir(path.dirname(abs));
-    await fs.writeFile(abs, content, 'utf8');
+  async addGeminiReadme(content = '# Gemini'): Promise<this> {
+    await this.ensureDir(path.join(this.root, '.gemini'));
+    await fs.writeFile(path.join(this.root, '.gemini', 'GEMINI.md'), content, 'utf8');
     return this;
   }
 }

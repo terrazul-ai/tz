@@ -103,7 +103,7 @@ export class SnippetCacheManager {
             promptExcerpt: s.promptExcerpt || s.prompt_excerpt!,
             value: s.value!,
             timestamp: s.timestamp!,
-            tool: s.tool as 'claude' | 'codex' | 'cursor' | 'copilot' | undefined,
+            tool: s.tool as 'claude' | 'codex' | 'gemini' | undefined,
           }));
 
         packages[pkgName] = {

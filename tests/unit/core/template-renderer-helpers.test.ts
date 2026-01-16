@@ -2,7 +2,7 @@ import { promises as fs } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
 import { type LockfileData } from '../../../src/core/lock-file.js';
 import { StorageManager } from '../../../src/core/storage.js';
@@ -334,6 +334,8 @@ describe('template-renderer helpers', () => {
       fakeHome = await mkdtemp('tz-config-home');
       process.env.HOME = fakeHome;
       process.env.USERPROFILE = fakeHome;
+      // Mock os.homedir() to ensure test isolation
+      vi.spyOn(os, 'homedir').mockReturnValue(fakeHome);
 
       tmpRoot = await mkdtemp('tz-config-test');
     });
@@ -341,6 +343,7 @@ describe('template-renderer helpers', () => {
     afterEach(async () => {
       process.env.HOME = originalHome;
       process.env.USERPROFILE = originalUserProfile;
+      vi.restoreAllMocks();
       await fs.rm(tmpRoot, { recursive: true, force: true }).catch(() => {});
       await fs.rm(fakeHome, { recursive: true, force: true }).catch(() => {});
     });
@@ -353,8 +356,7 @@ describe('template-renderer helpers', () => {
       expect(result.filesMap).toEqual({
         claude: 'CLAUDE.md',
         codex: 'AGENTS.md',
-        cursor: '.cursor/rules.mdc',
-        copilot: '.github/copilot-instructions.md',
+        gemini: 'GEMINI.md',
       });
       expect(result.profileTools).toBeInstanceOf(Array);
     });

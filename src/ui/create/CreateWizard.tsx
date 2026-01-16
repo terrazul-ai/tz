@@ -39,7 +39,7 @@ interface ToolDescriptor {
   label: string;
 }
 
-type SelectableTool = 'claude' | 'codex' | 'cursor' | 'copilot';
+type SelectableTool = 'claude' | 'codex' | 'gemini';
 
 export interface CreateWizardAutomation {
   name?: string;
@@ -55,8 +55,7 @@ export interface CreateWizardAutomation {
 const TOOLS: ToolDescriptor[] = [
   { id: 'claude', label: 'claude — Claude Code compatibility' },
   { id: 'codex', label: 'codex — Codex cli compatibility' },
-  { id: 'cursor', label: 'cursor — Cursor workspace tooling' },
-  { id: 'copilot', label: 'copilot — GitHub Copilot instructions' },
+  { id: 'gemini', label: 'gemini — Google Gemini compatibility' },
 ];
 
 const OPTION_LABELS: { id: 'examples' | 'hooks'; label: string }[] = [
@@ -611,11 +610,8 @@ function buildTemplateTree(tools: SelectableTool[]): string[] {
         case 'codex': {
           return 'AGENTS.md.hbs';
         }
-        case 'cursor': {
-          return 'cursor.rules.mdc.hbs';
-        }
-        case 'copilot': {
-          return 'COPILOT.md.hbs';
+        case 'gemini': {
+          return 'GEMINI.md.hbs';
         }
         default: {
           return null;
