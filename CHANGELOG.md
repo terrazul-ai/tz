@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.20.0](https://github.com/terrazul-ai/tz/compare/v0.19.2...v0.20.0) (2026-01-17)
+
+
+### Features
+
+* Adds terrazul to setup ([#78](https://github.com/terrazul-ai/tz/issues/78)) ([4afdb2f](https://github.com/terrazul-ai/tz/commit/4afdb2f399e96aefc75e8950ed25e4f589720ea8))
+* **commands:** Add headless mode to `tz run` with -p/--prompt option ([#80](https://github.com/terrazul-ai/tz/issues/80)) ([9bcf2b3](https://github.com/terrazul-ai/tz/commit/9bcf2b3f6b48cd5a404bc07391a170f0739768f6))
+* Initial codex support ([#81](https://github.com/terrazul-ai/tz/issues/81)) ([7e8a86a](https://github.com/terrazul-ai/tz/commit/7e8a86a68fdd5ffccb44038523caf0bafd8b2a29))
+* Remove unrelated symlinks when doing `tz run [@package](https://github.com/package)` ([#82](https://github.com/terrazul-ai/tz/issues/82)) ([0c166ae](https://github.com/terrazul-ai/tz/commit/0c166aee29cfd072639798be8ff1b95dd65de707))
+
+
+### Bug Fixes
+
+* **lockfile:** strip query params from resolved URLs ([#83](https://github.com/terrazul-ai/tz/issues/83)) ([cbc9493](https://github.com/terrazul-ai/tz/commit/cbc94932762a8d8833d746c111e00783efae1ab9))
+
 ## [0.19.2](https://github.com/terrazul-ai/tz/compare/v0.19.1...v0.19.2) (2025-12-15)
 
 
