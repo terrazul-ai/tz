@@ -8,6 +8,7 @@ import { planAndRender, type RenderedFileMetadata } from '../core/template-rende
 import { handleCommandError } from '../utils/command-errors.js';
 import { readManifest } from '../utils/manifest.js';
 import { collectPackageFilesFromAgentModules } from '../utils/package-collection.js';
+import { stripQueryParams } from '../utils/url.js';
 
 import type { CLIContext } from '../utils/context.js';
 import type { Command } from 'commander';
@@ -103,7 +104,7 @@ async function applyUpdates(
     const tarInfo = await ctx.registry.getTarballInfo(pkgName, info.version);
     updates[pkgName] = {
       version: info.version,
-      resolved: tarInfo.url,
+      resolved: stripQueryParams(tarInfo.url),
       integrity,
       dependencies: info.dependencies,
       yanked: false,
