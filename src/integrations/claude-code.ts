@@ -8,6 +8,7 @@ import { LockfileManager } from '../core/lock-file.js';
 import { StorageManager } from '../core/storage.js';
 
 import type { CLIContext } from '../utils/context.js';
+import type { Logger } from '../utils/logger.js';
 
 const exec = promisify(execCallback);
 
@@ -161,15 +162,33 @@ export async function cleanupMCPConfig(configPath: string): Promise<void> {
 }
 
 /**
- * Spawn Claude Code CLI with MCP config
+ * Internal options for spawning Claude Code CLI.
+ * Used by both interactive and headless spawn functions.
  */
-export async function spawnClaudeCode(
-  mcpConfigPath: string,
-  additionalArgs: string[] = [],
-  cwd?: string,
-  model?: string,
-): Promise<number> {
+interface SpawnClaudeOptions {
+  /** Path to the MCP configuration file */
+  mcpConfigPath: string;
+  /** Working directory for the spawned process */
+  cwd?: string;
+  /** Claude model to use (e.g., 'opus', 'sonnet'). Skipped if 'default'. */
+  model?: string;
+  /** Additional CLI arguments to pass to claude */
+  additionalArgs?: string[];
+  /** Optional logger for debug output */
+  logger?: Logger;
+}
+
+/**
+ * Internal helper that spawns Claude Code CLI with the given options.
+ * Handles argument building, process spawning, and error mapping.
+ *
+ * @internal
+ */
+function spawnClaudeCodeInternal(options: SpawnClaudeOptions): Promise<number> {
+  const { mcpConfigPath, cwd, model, additionalArgs = [], logger } = options;
+
   return new Promise((resolve, reject) => {
+    // Build base args: MCP config with strict mode
     const args = ['--mcp-config', mcpConfigPath, '--strict-mcp-config'];
 
     // Add model flag if specified (skip 'default' to use user's environment preference)
@@ -177,8 +196,14 @@ export async function spawnClaudeCode(
       args.push('--model', model);
     }
 
+    // Append any additional arguments
     args.push(...additionalArgs);
+
     const workingDir = cwd || process.cwd();
+
+    // Log command details at debug level
+    logger?.debug(`Spawning claude with args: ${args.join(' ')}`);
+    logger?.debug(`Working directory: ${workingDir}`);
 
     const child = spawn('claude', args, {
       cwd: workingDir,
@@ -206,48 +231,94 @@ export async function spawnClaudeCode(
 }
 
 /**
- * Spawn Claude Code CLI in headless mode with a prompt
+ * Spawn Claude Code CLI in interactive mode with MCP config.
+ *
+ * Launches the Claude CLI with the specified MCP configuration file,
+ * allowing the user to interact with Claude in the terminal.
+ *
+ * @param mcpConfigPath - Absolute path to the MCP configuration JSON file
+ * @param additionalArgs - Additional CLI arguments to pass to claude (e.g., ['--verbose'])
+ * @param cwd - Working directory for the spawned process (defaults to process.cwd())
+ * @param model - Claude model to use (e.g., 'opus', 'sonnet'). Pass 'default' or omit to use environment preference.
+ * @param logger - Optional logger for debug output
+ * @returns Promise resolving to the exit code of the claude process
+ * @throws {TerrazulError} TOOL_NOT_FOUND if claude CLI is not installed
+ *
+ * @example
+ * ```typescript
+ * const exitCode = await spawnClaudeCode('/path/to/mcp-config.json');
+ *
+ * // With model and logger
+ * const exitCode = await spawnClaudeCode(
+ *   '/path/to/mcp-config.json',
+ *   ['--verbose'],
+ *   '/my/project',
+ *   'opus',
+ *   logger
+ * );
+ * ```
+ */
+export async function spawnClaudeCode(
+  mcpConfigPath: string,
+  additionalArgs: string[] = [],
+  cwd?: string,
+  model?: string,
+  logger?: Logger,
+): Promise<number> {
+  return spawnClaudeCodeInternal({
+    mcpConfigPath,
+    cwd,
+    model,
+    additionalArgs,
+    logger,
+  });
+}
+
+/**
+ * Spawn Claude Code CLI in headless mode with a prompt.
+ *
+ * Runs Claude non-interactively with the given prompt, useful for
+ * automation, scripts, and CI/CD pipelines. The prompt is passed
+ * via the `-p` flag.
+ *
+ * @param mcpConfigPath - Absolute path to the MCP configuration JSON file
+ * @param prompt - The prompt to send to Claude (passed via -p flag)
+ * @param cwd - Working directory for the spawned process (defaults to process.cwd())
+ * @param model - Claude model to use (e.g., 'opus', 'sonnet'). Pass 'default' or omit to use environment preference.
+ * @param logger - Optional logger for debug output
+ * @returns Promise resolving to the exit code of the claude process
+ * @throws {TerrazulError} TOOL_NOT_FOUND if claude CLI is not installed
+ *
+ * @example
+ * ```typescript
+ * // Basic headless execution
+ * const exitCode = await spawnClaudeCodeHeadless(
+ *   '/path/to/mcp-config.json',
+ *   'List all TypeScript files in the src directory'
+ * );
+ *
+ * // With all options
+ * const exitCode = await spawnClaudeCodeHeadless(
+ *   '/path/to/mcp-config.json',
+ *   'Fix the failing tests',
+ *   '/my/project',
+ *   'opus',
+ *   logger
+ * );
+ * ```
  */
 export async function spawnClaudeCodeHeadless(
   mcpConfigPath: string,
   prompt: string,
   cwd?: string,
   model?: string,
+  logger?: Logger,
 ): Promise<number> {
-  return new Promise((resolve, reject) => {
-    const args = ['--mcp-config', mcpConfigPath, '--strict-mcp-config'];
-
-    // Add model flag if specified (skip 'default' to use user's environment preference)
-    if (model && model !== 'default') {
-      args.push('--model', model);
-    }
-
-    // Add headless prompt flag
-    args.push('-p', prompt);
-
-    const workingDir = cwd || process.cwd();
-
-    const child = spawn('claude', args, {
-      cwd: workingDir,
-      stdio: 'inherit',
-      shell: false,
-    });
-
-    child.on('error', (error) => {
-      if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
-        reject(
-          new TerrazulError(
-            ErrorCode.TOOL_NOT_FOUND,
-            'Claude CLI not found. Install it from https://claude.com/code',
-          ),
-        );
-      } else {
-        reject(error);
-      }
-    });
-
-    child.on('exit', (code) => {
-      resolve(code ?? 0);
-    });
+  return spawnClaudeCodeInternal({
+    mcpConfigPath,
+    cwd,
+    model,
+    additionalArgs: ['-p', prompt],
+    logger,
   });
 }

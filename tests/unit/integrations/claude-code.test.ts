@@ -565,5 +565,39 @@ cli_version = "0.1.0"
       const options = mockSpawn.mock.calls[0]?.[2] as { stdio?: string };
       expect(options.stdio).toBe('inherit');
     });
+
+    it('throws TOOL_NOT_FOUND on ENOENT error', async () => {
+      // EventEmitter is required here because ChildProcess extends it (not EventTarget)
+      // eslint-disable-next-line unicorn/prefer-event-target
+      const emitter = new EventEmitter() as ChildProcess;
+      const error = new Error('spawn claude ENOENT') as NodeJS.ErrnoException;
+      error.code = 'ENOENT';
+      setTimeout(() => emitter.emit('error', error), 10);
+      mockSpawn.mockReturnValue(emitter);
+
+      await expect(spawnClaudeCodeHeadless('/tmp/mcp.json', 'test prompt')).rejects.toThrow(
+        /claude cli not found/i,
+      );
+    });
+  });
+
+  describe('spawnClaudeCode', () => {
+    const mockSpawn = vi.mocked(spawn);
+
+    beforeEach(() => {
+      mockSpawn.mockReset();
+    });
+
+    it('throws TOOL_NOT_FOUND on ENOENT error', async () => {
+      // EventEmitter is required here because ChildProcess extends it (not EventTarget)
+      // eslint-disable-next-line unicorn/prefer-event-target
+      const emitter = new EventEmitter() as ChildProcess;
+      const error = new Error('spawn claude ENOENT') as NodeJS.ErrnoException;
+      error.code = 'ENOENT';
+      setTimeout(() => emitter.emit('error', error), 10);
+      mockSpawn.mockReturnValue(emitter);
+
+      await expect(spawnClaudeCode('/tmp/mcp.json')).rejects.toThrow(/claude cli not found/i);
+    });
   });
 });

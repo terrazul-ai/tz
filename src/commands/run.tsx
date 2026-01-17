@@ -626,7 +626,7 @@ async function spawnToolWithConfig(
       );
     }
     ctx.logger.info('Running Claude Code in headless mode...');
-    return spawnClaudeCodeHeadless(mcpResult.configPath, prompt, projectRoot, model);
+    return spawnClaudeCodeHeadless(mcpResult.configPath, prompt, projectRoot, model, ctx.logger);
   }
 
   // Log launch message
