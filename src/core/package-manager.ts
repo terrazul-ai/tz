@@ -9,6 +9,7 @@ import { ErrorCode, TerrazulError } from './errors.js';
 import { LockfileManager, type LockfileData, type LockfilePackage } from './lock-file.js';
 import { SnippetCacheManager } from './snippet-cache.js';
 import { agentModulesPath } from '../utils/path.js';
+import { stripQueryParams } from '../utils/url.js';
 
 import type { ProjectConfigData } from '../utils/config.js';
 import type { CLIContext } from '../utils/context.js';
@@ -241,7 +242,7 @@ export class PackageManager {
 
       updates[name] = {
         version: info.version,
-        resolved: resolvedUrl,
+        resolved: stripQueryParams(resolvedUrl),
         integrity,
         dependencies: info.dependencies,
         yanked: false,

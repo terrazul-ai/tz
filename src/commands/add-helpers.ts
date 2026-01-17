@@ -2,6 +2,7 @@ import { ErrorCode, TerrazulError } from '../core/errors.js';
 import { LockfileManager } from '../core/lock-file.js';
 import { planAndRender } from '../core/template-renderer.js';
 import { addPackageToProfile } from '../utils/manifest.js';
+import { stripQueryParams } from '../utils/url.js';
 
 import type { DependencyResolver } from '../core/dependency-resolver.js';
 import type { PackageManager } from '../core/package-manager.js';
@@ -101,7 +102,7 @@ export async function buildLockfileUpdates(
     const tarInfo = await ctx.registry.getTarballInfo(pkgName, info.version);
     updates[pkgName] = {
       version: info.version,
-      resolved: tarInfo.url,
+      resolved: stripQueryParams(tarInfo.url),
       integrity,
       dependencies: info.dependencies,
       yanked: false,
