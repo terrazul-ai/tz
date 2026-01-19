@@ -215,7 +215,9 @@ export class PackageManager {
       }
 
       if (!options.offline) {
-        if (!resolvedUrl) {
+        // Fetch fresh URL when missing OR when integrity is missing (stripped URLs in lockfile
+        // won't work for signed CDN downloads without integrity verification)
+        if (!resolvedUrl || !integrity) {
           const tarInfo = await this.ctx.registry.getTarballInfo(name, info.version);
           resolvedUrl = tarInfo.url;
         }
