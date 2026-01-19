@@ -440,8 +440,10 @@ const server = createServer(async (req, res) => {
       return;
     }
     const slug = `${owner}-${pkgName}`;
+    // Simulate AWS S3 signed URLs with temporary credentials (like production CDN)
+    const signedParams = `X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=AKIAIOSFODNN7EXAMPLE&X-Amz-Date=${new Date().toISOString().replaceAll(/[:-]/g, '').slice(0, 15)}Z&X-Amz-Expires=3600&X-Amz-Signature=${crypto.randomBytes(32).toString('hex')}`;
     respondJson(res, 200, {
-      url: `http://localhost:${PORT}/cdn/${encodeURIComponent(owner)}/${encodeURIComponent(slug)}/${version}.tgz`,
+      url: `http://localhost:${PORT}/cdn/${encodeURIComponent(owner)}/${encodeURIComponent(slug)}/${version}.tgz?${signedParams}`,
       integrity: versionInfo.integrity ?? 'sha256-fake-integrity',
     });
     return;

@@ -25,6 +25,7 @@ import { addOrUpdateDependency, readManifest } from '../utils/manifest.js';
 import { agentModulesPath, isFilesystemPath, resolvePathSpec } from '../utils/path.js';
 import { resolveSpawnTool } from '../utils/spawn-tool-resolve.js';
 import { normalizeToolOption } from '../utils/tool-options.js';
+import { stripQueryParams } from '../utils/url.js';
 
 import type { SnippetProgress } from '../core/template-renderer.js';
 import type { ToolSpec } from '../types/context.js';
@@ -137,7 +138,7 @@ async function autoInstallPackage(
     const tarInfo = await ctx.registry.getTarballInfo(pkgName, info.version);
     updates[pkgName] = {
       version: info.version,
-      resolved: tarInfo.url,
+      resolved: stripQueryParams(tarInfo.url),
       integrity,
       dependencies: info.dependencies,
       yanked: false,

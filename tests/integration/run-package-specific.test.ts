@@ -152,6 +152,32 @@ describe('tz run @owner/package', () => {
     expect(lock).toContain('@terrazul/starter');
   });
 
+  it('strips query params from resolved URLs in lockfile during auto-install', async () => {
+    const env = { ...process.env, HOME: tmpHome, USERPROFILE: tmpHome, TZ_SKIP_SPAWN: 'true' };
+    await run('node', [cli, 'init', '--name', '@e2e/run-strip-query'], { cwd: tmpProj, env });
+
+    // Run specific package (auto-install will fetch tarball info with signed URL)
+    await run('node', [cli, 'run', '@terrazul/starter@^1.1.0'], { cwd: tmpProj, env });
+
+    // Verify lockfile was created and resolved URLs have no query params
+    const lock = await fs.readFile(path.join(tmpProj, 'agents-lock.toml'), 'utf8');
+
+    // Check that lockfile contains the package
+    expect(lock).toContain('@terrazul/starter');
+
+    // The dummy registry returns S3-style signed URLs with X-Amz-* query params
+    // Verify these are stripped from the lockfile
+    expect(lock).not.toContain('X-Amz-Algorithm');
+    expect(lock).not.toContain('X-Amz-Credential');
+    expect(lock).not.toContain('X-Amz-Signature');
+
+    // Verify the resolved URL ends with .tgz (no query string)
+    const resolvedMatch = lock.match(/resolved\s*=\s*"([^"]+)"/);
+    expect(resolvedMatch).toBeTruthy();
+    expect(resolvedMatch![1]).toMatch(/\.tgz$/);
+    expect(resolvedMatch![1]).not.toContain('?');
+  });
+
   it('skips rendering if files already exist', async () => {
     const env = { ...process.env, HOME: tmpHome, USERPROFILE: tmpHome, TZ_SKIP_SPAWN: 'true' };
     await run('node', [cli, 'init', '--name', '@e2e/run-skip-render'], { cwd: tmpProj, env });
