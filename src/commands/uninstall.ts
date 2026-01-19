@@ -1,6 +1,7 @@
 import path from 'node:path';
 
 import { LockfileManager } from '../core/lock-file.js';
+import { SnippetCacheManager } from '../core/snippet-cache.js';
 import { removeSymlinks } from '../integrations/symlink-manager.js';
 import { injectPackageContext } from '../utils/context-file-injector.js';
 import { exists, remove } from '../utils/fs.js';
@@ -151,6 +152,36 @@ async function cleanupSymlinksAndContext(
   }
 }
 
+/**
+ * Clear snippet cache entries for uninstalled packages
+ */
+async function clearSnippetCache(
+  projectDir: string,
+  packages: string[],
+  ctx: CLIContext,
+): Promise<void> {
+  if (packages.length === 0) return;
+
+  const cacheFilePath = path.join(projectDir, 'agents-cache.toml');
+  const cacheManager = new SnippetCacheManager(cacheFilePath);
+  await cacheManager.read();
+
+  let clearedCount = 0;
+  for (const pkg of packages) {
+    await cacheManager.clearPackage(pkg);
+    clearedCount++;
+  }
+
+  if (clearedCount > 0) {
+    ctx.logger.info(`Cleared snippet cache for ${clearedCount} package(s)`);
+    if (ctx.logger.isVerbose()) {
+      for (const pkg of packages) {
+        ctx.logger.debug(`  ${pkg}`);
+      }
+    }
+  }
+}
+
 export function registerUninstallCommand(
   program: Command,
   createCtx: (opts: { verbose?: boolean }) => CLIContext,
@@ -208,6 +239,10 @@ export function registerUninstallCommand(
         } else {
           ctx.logger.info('Uninstall complete');
           await cleanupSymlinksAndContext(projectDir, pkg, ctx);
+
+          // Clear snippet cache for uninstalled packages
+          const packagesToClean = [pkg, ...removedFromLock];
+          await clearSnippetCache(projectDir, packagesToClean, ctx);
         }
       } catch (error) {
         ctx.logger.error(error instanceof Error ? error.message : String(error));
