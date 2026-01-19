@@ -6,6 +6,7 @@ import inquirer from 'inquirer';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ErrorCode } from '../../../src/core/errors';
+import { SnippetCacheManager } from '../../../src/core/snippet-cache';
 import { planAndRender } from '../../../src/core/template-renderer';
 import * as toolRunner from '../../../src/utils/tool-runner';
 
@@ -169,5 +170,43 @@ cli_version = "0.1.0"
     expect(typeof question.transformer).toBe('function');
     const transformed = question.transformer?.('', { value: '' }, { isFinal: false });
     expect(transformed).toContain('Jane Doe');
+  });
+
+  it('preserves cache entries for other packages during render', async () => {
+    // Setup: Create a cache file with entries for a different package
+    const cacheFilePath = path.join(projectRoot, 'agents-cache.toml');
+    const cacheManager = new SnippetCacheManager(cacheFilePath);
+    await cacheManager.read();
+
+    // Add cache entry for a package that is NOT being rendered
+    await cacheManager.setSnippet('@other/package', '2.0.0', {
+      id: 'other_snippet_1',
+      type: 'askUser',
+      promptExcerpt: 'Some question',
+      value: 'Some answer',
+      timestamp: new Date().toISOString(),
+    });
+
+    // Verify the cache entry exists
+    const beforeCache = await cacheManager.read();
+    expect(beforeCache.packages['@other/package']).toBeDefined();
+    expect(beforeCache.packages['@other/package'].snippets).toHaveLength(1);
+
+    // Render the @test/demo package
+    await planAndRender(projectRoot, agentModules, {
+      force: true,
+      packageName: '@test/demo',
+      tool: 'claude',
+      cacheFilePath,
+      storeDir: storeRoot,
+    });
+
+    // Verify the @other/package cache entry is PRESERVED (not pruned)
+    const afterCacheManager = new SnippetCacheManager(cacheFilePath);
+    const afterCache = await afterCacheManager.read();
+    expect(afterCache.packages['@other/package']).toBeDefined();
+    expect(afterCache.packages['@other/package'].snippets).toHaveLength(1);
+    expect(afterCache.packages['@other/package'].snippets[0].id).toBe('other_snippet_1');
+    expect(afterCache.packages['@other/package'].snippets[0].value).toBe('Some answer');
   });
 });

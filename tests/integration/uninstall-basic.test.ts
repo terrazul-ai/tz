@@ -214,4 +214,64 @@ version = "0.1.0"
     const lock = await fs.readFile(path.join(tmpProj, 'agents-lock.toml'), 'utf8');
     expect(lock).toContain('@terrazul/base');
   });
+
+  it('clears snippet cache entries for uninstalled package and pruned deps', async () => {
+    const env = { ...process.env, HOME: tmpHome, USERPROFILE: tmpHome };
+    await run('node', [cli, 'init', '--name', '@e2e/uninstall-cache-test'], { cwd: tmpProj, env });
+
+    const manifest = `
+[package]
+name = "@e2e/uninstall-cache-test"
+version = "0.1.0"
+
+[dependencies]
+"@terrazul/starter" = "^1.1.0"
+`;
+    await fs.writeFile(path.join(tmpProj, 'agents.toml'), manifest, 'utf8');
+
+    await run('node', [cli, 'add', '@terrazul/starter@1.1.0'], { cwd: tmpProj, env });
+
+    // Create a cache file with entries for the installed packages and one other package
+    const cacheContent = `
+version = 1
+
+[packages."@terrazul/starter"]
+version = "1.1.0"
+snippets = [
+  { id = "starter_snippet", type = "askUser", prompt_excerpt = "Question?", value = "Answer", timestamp = "2025-01-01T00:00:00.000Z" }
+]
+
+[packages."@terrazul/base"]
+version = "1.0.0"
+snippets = [
+  { id = "base_snippet", type = "askAgent", prompt_excerpt = "Agent question", value = "Agent answer", timestamp = "2025-01-01T00:00:00.000Z" }
+]
+
+[packages."@other/package"]
+version = "2.0.0"
+snippets = [
+  { id = "other_snippet", type = "askUser", prompt_excerpt = "Other question", value = "Other answer", timestamp = "2025-01-01T00:00:00.000Z" }
+]
+
+[metadata]
+generated_at = "2025-01-01T00:00:00.000Z"
+cli_version = "0.1.0"
+`;
+    const cachePath = path.join(tmpProj, 'agents-cache.toml');
+    await fs.writeFile(cachePath, cacheContent.trim(), 'utf8');
+
+    // Uninstall the starter package (which should also prune @terrazul/base)
+    await run('node', [cli, 'uninstall', '@terrazul/starter'], { cwd: tmpProj, env });
+
+    // Verify the cache file was updated
+    const cacheAfter = await fs.readFile(cachePath, 'utf8');
+
+    // Cache entries for @terrazul/starter and @terrazul/base should be removed
+    expect(cacheAfter).not.toContain('@terrazul/starter');
+    expect(cacheAfter).not.toContain('@terrazul/base');
+
+    // Cache entries for @other/package should be PRESERVED
+    expect(cacheAfter).toContain('@other/package');
+    expect(cacheAfter).toContain('other_snippet');
+  });
 });

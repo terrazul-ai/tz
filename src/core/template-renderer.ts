@@ -584,10 +584,10 @@ export async function planAndRender(
     const cacheFilePath = opts.cacheFilePath ?? path.join(projectRoot, 'agents-cache.toml');
     cacheManager = new SnippetCacheManager(cacheFilePath);
     await cacheManager.read();
-
-    // Prune stale cache entries (packages no longer installed)
-    const installedPackageNames = pkgs.map((p) => p.name);
-    await cacheManager.prune(installedPackageNames);
+    // Note: Cache pruning is intentionally NOT done here to preserve entries
+    // when switching between packages. Cache entries are only removed during
+    // explicit `tz uninstall` to allow users to switch between packages
+    // without losing cached askUser/askAgent responses.
   }
 
   const written: string[] = [];
