@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.20.1](https://github.com/terrazul-ai/tz/compare/v0.20.0...v0.20.1) (2026-01-19)
+
+
+### Bug Fixes
+
+* **core:** Preserve snippet cache when switching between packages ([#85](https://github.com/terrazul-ai/tz/issues/85)) ([17e03b7](https://github.com/terrazul-ai/tz/commit/17e03b722d4f4cac3dee5fe985714db7cc097c12))
+* **lockfile:** strip query params from resolved URLs ([#84](https://github.com/terrazul-ai/tz/issues/84)) ([edbef11](https://github.com/terrazul-ai/tz/commit/edbef113ff474c0be71fa063e8a5e66e5a038fb7))
+
 ## [0.20.0](https://github.com/terrazul-ai/tz/compare/v0.19.2...v0.20.0) (2026-01-17)
 
 
