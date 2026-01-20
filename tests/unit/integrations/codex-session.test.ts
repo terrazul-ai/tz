@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import { promises as fs } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -20,6 +21,7 @@ vi.mock('node:os', async (importOriginal) => {
 import {
   cleanupCodexSession,
   createCodexSession,
+  getCodexProjectDir,
   getProjectTrust,
   getTrustFilePath,
   readCodexConfig,
@@ -27,6 +29,11 @@ import {
   setProjectTrust,
   writeTrustFile,
 } from '../../../src/integrations/codex-session.js';
+
+// Helper to compute expected hash (matches implementation)
+function getProjectHash(projectRoot: string): string {
+  return crypto.createHash('sha256').update(projectRoot).digest('hex').slice(0, 16);
+}
 
 describe('codex-session', () => {
   let tmpDir: string;
@@ -140,16 +147,48 @@ describe('codex-session', () => {
     });
   });
 
+  describe('getCodexProjectDir', () => {
+    it('returns path under ~/.terrazul/codex/projects/', () => {
+      const projectRoot = '/Users/test/my-project';
+      const result = getCodexProjectDir(projectRoot);
+
+      expect(result).toContain('.terrazul');
+      expect(result).toContain('codex');
+      expect(result).toContain('projects');
+    });
+
+    it('returns same path for same project root (hash consistency)', () => {
+      const projectRoot = '/Users/test/my-project';
+      const result1 = getCodexProjectDir(projectRoot);
+      const result2 = getCodexProjectDir(projectRoot);
+
+      expect(result1).toBe(result2);
+    });
+
+    it('returns different paths for different projects', () => {
+      const projectA = '/Users/test/project-a';
+      const projectB = '/Users/test/project-b';
+
+      const resultA = getCodexProjectDir(projectA);
+      const resultB = getCodexProjectDir(projectB);
+
+      expect(resultA).not.toBe(resultB);
+    });
+  });
+
   describe('createCodexSession', () => {
-    it('creates temp CODEX_HOME directory', async () => {
+    it('creates persistent CODEX_HOME directory under ~/.terrazul', async () => {
       const projectRoot = path.join(tmpDir, 'project');
       await fs.mkdir(projectRoot, { recursive: true });
 
       const session = await createCodexSession(projectRoot, {});
 
-      expect(session.tempCodexHome).toBe(path.join(projectRoot, '.terrazul', 'codex-home'));
+      const expectedHash = getProjectHash(projectRoot);
+      const expectedPath = path.join(tmpDir, '.terrazul', 'codex', 'projects', expectedHash);
+      expect(session.codexHome).toBe(expectedPath);
+
       const exists = await fs
-        .access(session.tempCodexHome)
+        .access(session.codexHome)
         .then(() => true)
         .catch(() => false);
       expect(exists).toBe(true);
@@ -157,13 +196,26 @@ describe('codex-session', () => {
       await session.cleanup();
     });
 
-    it('creates prompts directory inside temp CODEX_HOME', async () => {
+    it('writes .project-path file for debugging', async () => {
       const projectRoot = path.join(tmpDir, 'project');
       await fs.mkdir(projectRoot, { recursive: true });
 
       const session = await createCodexSession(projectRoot, {});
 
-      const promptsDir = path.join(session.tempCodexHome, 'prompts');
+      const projectPathFile = path.join(session.codexHome, '.project-path');
+      const content = await fs.readFile(projectPathFile, 'utf8');
+      expect(content).toBe(projectRoot);
+
+      await session.cleanup();
+    });
+
+    it('creates prompts directory inside CODEX_HOME', async () => {
+      const projectRoot = path.join(tmpDir, 'project');
+      await fs.mkdir(projectRoot, { recursive: true });
+
+      const session = await createCodexSession(projectRoot, {});
+
+      const promptsDir = path.join(session.codexHome, 'prompts');
       const exists = await fs
         .access(promptsDir)
         .then(() => true)
@@ -178,15 +230,15 @@ describe('codex-session', () => {
       await fs.mkdir(projectRoot, { recursive: true });
 
       // Create auth.json in user's CODEX_HOME
-      const codexHome = path.join(tmpDir, '.codex');
-      await fs.mkdir(codexHome, { recursive: true });
+      const userCodexHome = path.join(tmpDir, '.codex');
+      await fs.mkdir(userCodexHome, { recursive: true });
       const authData = { token: 'test-token', refresh_token: 'test-refresh' };
-      await fs.writeFile(path.join(codexHome, 'auth.json'), JSON.stringify(authData));
+      await fs.writeFile(path.join(userCodexHome, 'auth.json'), JSON.stringify(authData));
 
       const session = await createCodexSession(projectRoot, {});
 
       // Verify auth.json was copied
-      const copiedAuthPath = path.join(session.tempCodexHome, 'auth.json');
+      const copiedAuthPath = path.join(session.codexHome, 'auth.json');
       const copiedContent = await fs.readFile(copiedAuthPath, 'utf8');
       expect(JSON.parse(copiedContent)).toEqual(authData);
 
@@ -200,8 +252,8 @@ describe('codex-session', () => {
       // No auth.json in user's CODEX_HOME
       const session = await createCodexSession(projectRoot, {});
 
-      // Should not throw, and auth.json should not exist in temp
-      const copiedAuthPath = path.join(session.tempCodexHome, 'auth.json');
+      // Should not throw, and auth.json should not exist
+      const copiedAuthPath = path.join(session.codexHome, 'auth.json');
       const exists = await fs
         .access(copiedAuthPath)
         .then(() => true)
@@ -216,22 +268,19 @@ describe('codex-session', () => {
       await fs.mkdir(projectRoot, { recursive: true });
 
       // User's CODEX_HOME without auth.json (not authenticated yet)
-      const codexHome = path.join(tmpDir, '.codex');
-      await fs.mkdir(codexHome, { recursive: true });
+      const userCodexHome = path.join(tmpDir, '.codex');
+      await fs.mkdir(userCodexHome, { recursive: true });
 
       const session = await createCodexSession(projectRoot, {});
 
-      // Simulate user authenticating during session by creating auth.json in temp
+      // Simulate user authenticating during session by creating auth.json
       const newAuthData = { token: 'new-session-token', refresh_token: 'new-refresh' };
-      await fs.writeFile(
-        path.join(session.tempCodexHome, 'auth.json'),
-        JSON.stringify(newAuthData),
-      );
+      await fs.writeFile(path.join(session.codexHome, 'auth.json'), JSON.stringify(newAuthData));
 
       await cleanupCodexSession(session);
 
       // Verify auth.json was persisted to user's CODEX_HOME
-      const persistedAuthPath = path.join(codexHome, 'auth.json');
+      const persistedAuthPath = path.join(userCodexHome, 'auth.json');
       const persistedContent = await fs.readFile(persistedAuthPath, 'utf8');
       expect(JSON.parse(persistedContent)).toEqual(newAuthData);
     });
@@ -241,35 +290,35 @@ describe('codex-session', () => {
       await fs.mkdir(projectRoot, { recursive: true });
 
       // User's CODEX_HOME with existing auth.json
-      const codexHome = path.join(tmpDir, '.codex');
-      await fs.mkdir(codexHome, { recursive: true });
+      const userCodexHome = path.join(tmpDir, '.codex');
+      await fs.mkdir(userCodexHome, { recursive: true });
       const oldAuthData = { token: 'old-token', refresh_token: 'old-refresh' };
-      await fs.writeFile(path.join(codexHome, 'auth.json'), JSON.stringify(oldAuthData));
+      await fs.writeFile(path.join(userCodexHome, 'auth.json'), JSON.stringify(oldAuthData));
 
       const session = await createCodexSession(projectRoot, {});
 
       // Simulate token refresh during session
       const refreshedAuthData = { token: 'refreshed-token', refresh_token: 'refreshed-refresh' };
       await fs.writeFile(
-        path.join(session.tempCodexHome, 'auth.json'),
+        path.join(session.codexHome, 'auth.json'),
         JSON.stringify(refreshedAuthData),
       );
 
       await cleanupCodexSession(session);
 
       // Verify auth.json was updated in user's CODEX_HOME
-      const persistedContent = await fs.readFile(path.join(codexHome, 'auth.json'), 'utf8');
+      const persistedContent = await fs.readFile(path.join(userCodexHome, 'auth.json'), 'utf8');
       expect(JSON.parse(persistedContent)).toEqual(refreshedAuthData);
     });
 
-    it('merges user config into temp config', async () => {
+    it('merges user config into session config', async () => {
       const projectRoot = path.join(tmpDir, 'project');
       await fs.mkdir(projectRoot, { recursive: true });
 
       // Create user config
-      const codexHome = path.join(tmpDir, '.codex');
-      await fs.mkdir(codexHome, { recursive: true });
-      await fs.writeFile(path.join(codexHome, 'config.toml'), 'model = "gpt-4"\n');
+      const userCodexHome = path.join(tmpDir, '.codex');
+      await fs.mkdir(userCodexHome, { recursive: true });
+      await fs.writeFile(path.join(userCodexHome, 'config.toml'), 'model = "gpt-4"\n');
 
       const session = await createCodexSession(projectRoot, {});
 
@@ -280,7 +329,7 @@ describe('codex-session', () => {
       await session.cleanup();
     });
 
-    it('merges persisted trust settings into temp config', async () => {
+    it('merges persisted trust settings into session config', async () => {
       const projectRoot = path.join(tmpDir, 'project');
       await fs.mkdir(projectRoot, { recursive: true });
 
@@ -301,7 +350,7 @@ describe('codex-session', () => {
       await session.cleanup();
     });
 
-    it('merges MCP servers into temp config', async () => {
+    it('merges MCP servers into session config', async () => {
       const projectRoot = path.join(tmpDir, 'project');
       await fs.mkdir(projectRoot, { recursive: true });
 
@@ -321,39 +370,69 @@ describe('codex-session', () => {
 
       await session.cleanup();
     });
+
+    it('same project gets same CODEX_HOME across sessions', async () => {
+      const projectRoot = path.join(tmpDir, 'project');
+      await fs.mkdir(projectRoot, { recursive: true });
+
+      const session1 = await createCodexSession(projectRoot, {});
+      const path1 = session1.codexHome;
+      await session1.cleanup();
+
+      const session2 = await createCodexSession(projectRoot, {});
+      const path2 = session2.codexHome;
+      await session2.cleanup();
+
+      expect(path1).toBe(path2);
+    });
+
+    it('different projects get different CODEX_HOMEs', async () => {
+      const projectA = path.join(tmpDir, 'project-a');
+      const projectB = path.join(tmpDir, 'project-b');
+      await fs.mkdir(projectA, { recursive: true });
+      await fs.mkdir(projectB, { recursive: true });
+
+      const sessionA = await createCodexSession(projectA, {});
+      const sessionB = await createCodexSession(projectB, {});
+
+      expect(sessionA.codexHome).not.toBe(sessionB.codexHome);
+
+      await sessionA.cleanup();
+      await sessionB.cleanup();
+    });
   });
 
   describe('cleanupCodexSession', () => {
-    it('deletes temp CODEX_HOME directory', async () => {
+    it('preserves CODEX_HOME directory (does not delete)', async () => {
       const projectRoot = path.join(tmpDir, 'project');
       await fs.mkdir(projectRoot, { recursive: true });
 
       const session = await createCodexSession(projectRoot, {});
 
-      // Verify temp dir exists
+      // Verify directory exists
       let exists = await fs
-        .access(session.tempCodexHome)
+        .access(session.codexHome)
         .then(() => true)
         .catch(() => false);
       expect(exists).toBe(true);
 
       await cleanupCodexSession(session);
 
-      // Verify temp dir is deleted
+      // Verify directory STILL exists (for /resume functionality)
       exists = await fs
-        .access(session.tempCodexHome)
+        .access(session.codexHome)
         .then(() => true)
         .catch(() => false);
-      expect(exists).toBe(false);
+      expect(exists).toBe(true);
     });
 
-    it('persists new trust settings from temp config', async () => {
+    it('persists new trust settings from session config', async () => {
       const projectRoot = path.join(tmpDir, 'project');
       await fs.mkdir(projectRoot, { recursive: true });
 
       const session = await createCodexSession(projectRoot, {});
 
-      // Add trust setting to temp config (simulating user trusting a project)
+      // Add trust setting to session config (simulating user trusting a project)
       // Read the config, parse it, modify it, and write it back properly
       const configContent = await fs.readFile(session.configPath, 'utf8');
       const TOML = await import('@iarna/toml');

@@ -2,11 +2,12 @@
  * Codex Session Management
  *
  * Manages Codex sessions with:
- * - Temporary CODEX_HOME for user-level files (prompts)
+ * - Persistent per-project CODEX_HOME under ~/.terrazul/codex/projects/
  * - Trust persistence across sessions
  * - Config merging from user config
  */
 
+import crypto from 'node:crypto';
 import { promises as fs } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -19,8 +20,8 @@ import type { MCPServerConfig } from './claude-code.js';
  * Codex session configuration
  */
 export interface CodexSessionConfig {
-  /** Temporary CODEX_HOME path (e.g., .terrazul/codex-home/) */
-  tempCodexHome: string;
+  /** Persistent per-project CODEX_HOME path (e.g., ~/.terrazul/codex/projects/<hash>/) */
+  codexHome: string;
   /** Path to the merged config file */
   configPath: string;
   /** Cleanup function to call when session ends */
@@ -60,7 +61,7 @@ export interface CodexConfigData {
 const TRUST_FILE_NAME = 'codex-trust.toml';
 const CODEX_CONFIG_FILE = 'config.toml';
 const CODEX_AUTH_FILE = 'auth.json';
-const TEMP_CODEX_HOME_NAME = 'codex-home';
+const PROJECT_PATH_FILE = '.project-path';
 
 /**
  * Get the default Codex home directory
@@ -74,6 +75,23 @@ function getDefaultCodexHome(): string {
  */
 function getTerrazulConfigDir(): string {
   return path.join(os.homedir(), '.terrazul');
+}
+
+/**
+ * Compute a hash of the project root path for safe directory naming
+ * Uses first 16 characters of SHA-256 hash
+ */
+function getProjectHash(projectRoot: string): string {
+  return crypto.createHash('sha256').update(projectRoot).digest('hex').slice(0, 16);
+}
+
+/**
+ * Get the persistent CODEX_HOME directory for a project
+ * Located at ~/.terrazul/codex/projects/<hash>/
+ */
+export function getCodexProjectDir(projectRoot: string): string {
+  const hash = getProjectHash(projectRoot);
+  return path.join(getTerrazulConfigDir(), 'codex', 'projects', hash);
 }
 
 /**
@@ -190,13 +208,13 @@ function mergeMCPServers(
 }
 
 /**
- * Copy auth.json from user's CODEX_HOME to temp directory
- * This ensures Codex can authenticate when using our temp CODEX_HOME
+ * Copy auth.json from user's CODEX_HOME to session directory
+ * This ensures Codex can authenticate when using our session CODEX_HOME
  */
-async function copyAuthFile(tempCodexHome: string): Promise<void> {
+async function copyAuthFile(codexHome: string): Promise<void> {
   const sourceCodexHome = getDefaultCodexHome();
   const sourceAuthPath = path.join(sourceCodexHome, CODEX_AUTH_FILE);
-  const destAuthPath = path.join(tempCodexHome, CODEX_AUTH_FILE);
+  const destAuthPath = path.join(codexHome, CODEX_AUTH_FILE);
 
   try {
     await fs.copyFile(sourceAuthPath, destAuthPath);
@@ -208,16 +226,16 @@ async function copyAuthFile(tempCodexHome: string): Promise<void> {
 }
 
 /**
- * Persist auth.json from temp CODEX_HOME back to user's ~/.codex/
+ * Persist auth.json from session CODEX_HOME back to user's ~/.codex/
  * This ensures authentication during a session is saved for future use
  */
-async function persistAuthFile(tempCodexHome: string): Promise<void> {
+async function persistAuthFile(codexHome: string): Promise<void> {
   const destCodexHome = getDefaultCodexHome();
-  const sourceAuthPath = path.join(tempCodexHome, CODEX_AUTH_FILE);
+  const sourceAuthPath = path.join(codexHome, CODEX_AUTH_FILE);
   const destAuthPath = path.join(destCodexHome, CODEX_AUTH_FILE);
 
   try {
-    // Check if auth.json exists in temp
+    // Check if auth.json exists in session directory
     await fs.access(sourceAuthPath);
 
     // Ensure destination directory exists
@@ -228,37 +246,41 @@ async function persistAuthFile(tempCodexHome: string): Promise<void> {
     // Set restrictive permissions on auth file (contains sensitive tokens)
     await fs.chmod(destAuthPath, 0o600);
   } catch {
-    // auth.json might not exist in temp (user didn't authenticate), that's OK
+    // auth.json might not exist in session (user didn't authenticate), that's OK
   }
 }
 
 /**
  * Create a Codex session with merged config
  *
- * This creates a temporary CODEX_HOME directory with:
+ * This creates a persistent per-project CODEX_HOME directory with:
  * 1. User's auth.json from ~/.codex/ (copied)
  * 2. User's base config from ~/.codex/config.toml
  * 3. Persisted trust settings from ~/.terrazul/codex-trust.toml
  * 4. MCP servers from TZ packages
  *
- * @param projectRoot - The project root directory (for trust settings)
+ * @param projectRoot - The project root directory (for hash computation and trust settings)
  * @param mcpServers - MCP servers to include in the config
- * @returns Session config with temp CODEX_HOME path and cleanup function
+ * @returns Session config with CODEX_HOME path and cleanup function
  */
 export async function createCodexSession(
   projectRoot: string,
   mcpServers: Record<string, MCPServerConfig>,
 ): Promise<CodexSessionConfig> {
-  // Create temp CODEX_HOME in .terrazul/codex-home/
-  const tempCodexHome = path.join(projectRoot, '.terrazul', TEMP_CODEX_HOME_NAME);
-  await fs.mkdir(tempCodexHome, { recursive: true });
+  // Create persistent CODEX_HOME in ~/.terrazul/codex/projects/<hash>/
+  const codexHome = getCodexProjectDir(projectRoot);
+  await fs.mkdir(codexHome, { recursive: true });
+
+  // Write .project-path file for debugging/inspection
+  const projectPathFile = path.join(codexHome, PROJECT_PATH_FILE);
+  await fs.writeFile(projectPathFile, projectRoot, 'utf8');
 
   // Also create prompts directory for symlinks
-  const promptsDir = path.join(tempCodexHome, 'prompts');
+  const promptsDir = path.join(codexHome, 'prompts');
   await fs.mkdir(promptsDir, { recursive: true });
 
   // Copy auth.json from user's CODEX_HOME for authentication
-  await copyAuthFile(tempCodexHome);
+  await copyAuthFile(codexHome);
 
   // Read user's base config
   const userConfig = await readCodexConfig();
@@ -278,21 +300,21 @@ export async function createCodexSession(
   // Add MCP servers
   mergedConfig = mergeMCPServers(mergedConfig, mcpServers);
 
-  // Write merged config to temp CODEX_HOME
-  const configPath = path.join(tempCodexHome, CODEX_CONFIG_FILE);
+  // Write merged config to CODEX_HOME
+  const configPath = path.join(codexHome, CODEX_CONFIG_FILE);
   await writeCodexConfig(configPath, mergedConfig);
 
   // Create cleanup function
   const cleanup = async (): Promise<void> => {
     await cleanupCodexSession({
-      tempCodexHome,
+      codexHome,
       configPath,
       cleanup: async () => {},
     });
   };
 
   return {
-    tempCodexHome,
+    codexHome,
     configPath,
     cleanup,
   };
@@ -302,18 +324,19 @@ export async function createCodexSession(
  * Clean up Codex session and persist trust + auth
  *
  * This:
- * 1. Reads the temp config for any new project trust settings
+ * 1. Reads the session config for any new project trust settings
  * 2. Merges them into ~/.terrazul/codex-trust.toml
  * 3. Persists auth.json back to ~/.codex/ (in case user authenticated during session)
- * 4. Deletes the temp CODEX_HOME directory
+ *
+ * Note: The CODEX_HOME directory is NOT deleted - it persists for /resume functionality
  *
  * @param session - The session config from createCodexSession
  */
 export async function cleanupCodexSession(session: CodexSessionConfig): Promise<void> {
   try {
-    // Read the temp config to check for new trust settings
-    const tempConfig = await readCodexConfig(session.tempCodexHome);
-    const newTrust = extractProjectTrust(tempConfig);
+    // Read the session config to check for new trust settings
+    const sessionConfig = await readCodexConfig(session.codexHome);
+    const newTrust = extractProjectTrust(sessionConfig);
 
     // If there are trust settings, persist them
     if (Object.keys(newTrust).length > 0) {
@@ -335,17 +358,13 @@ export async function cleanupCodexSession(session: CodexSessionConfig): Promise<
 
   try {
     // Persist auth.json back to user's ~/.codex/ in case they authenticated during session
-    await persistAuthFile(session.tempCodexHome);
+    await persistAuthFile(session.codexHome);
   } catch {
     // Ignore errors during cleanup - best effort
   }
 
-  try {
-    // Delete temp CODEX_HOME directory
-    await fs.rm(session.tempCodexHome, { recursive: true, force: true });
-  } catch {
-    // Ignore errors during cleanup - best effort
-  }
+  // Note: We intentionally do NOT delete the codexHome directory
+  // This preserves Codex's internal state (including /resume data) between sessions
 }
 
 /**

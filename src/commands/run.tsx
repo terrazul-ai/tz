@@ -936,7 +936,7 @@ export function registerRunCommand(
               packages,
               result.renderedFiles,
               exclusiveMode,
-              codexSession?.tempCodexHome,
+              codexSession?.codexHome,
             );
 
             // Spawn tool (with cleanup) - uses the same resolved tool spec
@@ -946,7 +946,7 @@ export function registerRunCommand(
               mcpResult,
               toolSpec,
               opts.prompt,
-              codexSession?.tempCodexHome,
+              codexSession?.codexHome,
             );
             process.exitCode = exitCode;
           } finally {
