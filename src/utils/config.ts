@@ -388,7 +388,7 @@ export function computeOutputTargets(
   return targets;
 }
 
-const ANSWER_TOOLS: ReadonlySet<ToolType> = new Set(['claude', 'codex']);
+const ANSWER_TOOLS: ReadonlySet<ToolType> = new Set(['claude', 'codex', 'gemini']);
 
 export function selectPrimaryTool(cfg: UserConfig, override?: ToolType): ToolSpec {
   const normalized = getProfileTools(cfg);
@@ -423,7 +423,7 @@ export function selectPrimaryTool(cfg: UserConfig, override?: ToolType): ToolSpe
 
   throw new TerrazulError(
     ErrorCode.INVALID_ARGUMENT,
-    'No answer tool configured in profile.tools (expected claude or codex).',
+    'No answer tool configured in profile.tools (expected claude, codex, or gemini).',
   );
 }
 

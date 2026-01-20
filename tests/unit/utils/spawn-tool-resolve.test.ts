@@ -9,7 +9,7 @@ import { resolveSpawnTool } from '../../../src/utils/spawn-tool-resolve.js';
 import type { UserConfig } from '../../../src/types/config.js';
 
 // Helper to create minimal UserConfig
-function createUserConfig(tools?: Array<{ type: 'claude' | 'codex' }>): UserConfig {
+function createUserConfig(tools?: Array<{ type: 'claude' | 'codex' | 'gemini' }>): UserConfig {
   return {
     registry: 'https://api.terrazul.com',
     environment: 'production',
@@ -31,7 +31,10 @@ function createUserConfig(tools?: Array<{ type: 'claude' | 'codex' }>): UserConf
 }
 
 // Helper to create agents.toml with tool field
-async function createManifest(projectDir: string, tool?: 'claude' | 'codex'): Promise<void> {
+async function createManifest(
+  projectDir: string,
+  tool?: 'claude' | 'codex' | 'gemini',
+): Promise<void> {
   const toml = `
 [package]
 name = "@test/pkg"
@@ -225,36 +228,57 @@ tool = "invalid"
       });
     });
 
+    describe('gemini tool support', () => {
+      it('accepts gemini tool from --tool flag', async () => {
+        const userConfig = createUserConfig([{ type: 'claude' }]);
+        await createManifest(tmpDir);
+
+        const result = await resolveSpawnTool({
+          flagOverride: 'gemini',
+          projectRoot: tmpDir,
+          userConfig,
+        });
+
+        expect(result.type).toBe('gemini');
+      });
+
+      it('accepts gemini tool from manifest', async () => {
+        await createManifest(tmpDir, 'gemini');
+        const userConfig = createUserConfig([{ type: 'claude' }]);
+
+        const result = await resolveSpawnTool({
+          projectRoot: tmpDir,
+          userConfig,
+        });
+
+        expect(result.type).toBe('gemini');
+      });
+
+      it('accepts gemini tool from user config', async () => {
+        const userConfig = createUserConfig([{ type: 'gemini' }]);
+        await createManifest(tmpDir);
+
+        const result = await resolveSpawnTool({
+          projectRoot: tmpDir,
+          userConfig,
+        });
+
+        expect(result.type).toBe('gemini');
+      });
+    });
+
     describe('unsupported tool validation', () => {
-      it('rejects gemini tool from --tool flag with clear error', async () => {
+      it('rejects cursor tool from --tool flag with clear error', async () => {
         const userConfig = createUserConfig([{ type: 'claude' }]);
         await createManifest(tmpDir);
 
         await expect(
           resolveSpawnTool({
-            flagOverride: 'gemini' as 'claude' | 'codex',
+            flagOverride: 'cursor' as 'claude' | 'codex',
             projectRoot: tmpDir,
             userConfig,
           }),
-        ).rejects.toThrow(/Tool 'gemini' does not support interactive spawning/);
-      });
-
-      it('rejects gemini tool from manifest with clear error', async () => {
-        const toml = `
-[package]
-name = "@test/pkg"
-version = "1.0.0"
-tool = "gemini"
-`;
-        await fs.writeFile(path.join(tmpDir, 'agents.toml'), toml.trim());
-        const userConfig = createUserConfig([{ type: 'claude' }]);
-
-        await expect(
-          resolveSpawnTool({
-            projectRoot: tmpDir,
-            userConfig,
-          }),
-        ).rejects.toThrow(/Tool 'gemini' does not support interactive spawning/);
+        ).rejects.toThrow(/Tool 'cursor' does not support interactive spawning/);
       });
 
       it('error message includes source for --tool flag', async () => {
@@ -263,29 +287,32 @@ tool = "gemini"
 
         await expect(
           resolveSpawnTool({
-            flagOverride: 'gemini' as 'claude' | 'codex',
+            flagOverride: 'cursor' as 'claude' | 'codex',
             projectRoot: tmpDir,
             userConfig,
           }),
         ).rejects.toThrow(/--tool flag/);
       });
 
-      it('error message includes source for manifest tool', async () => {
+      it('invalid tool in manifest falls back to user config (manifest parsing filters invalid tools)', async () => {
+        // Note: Invalid tools like 'cursor' are filtered out during manifest parsing,
+        // so the code falls back to user config. This is the expected behavior.
         const toml = `
 [package]
 name = "@test/pkg"
 version = "1.0.0"
-tool = "gemini"
+tool = "cursor"
 `;
         await fs.writeFile(path.join(tmpDir, 'agents.toml'), toml.trim());
         const userConfig = createUserConfig([{ type: 'claude' }]);
 
-        await expect(
-          resolveSpawnTool({
-            projectRoot: tmpDir,
-            userConfig,
-          }),
-        ).rejects.toThrow(/agents\.toml \[package]\.tool/);
+        const result = await resolveSpawnTool({
+          projectRoot: tmpDir,
+          userConfig,
+        });
+
+        // Falls back to user config since 'cursor' is filtered out during manifest parsing
+        expect(result.type).toBe('claude');
       });
     });
   });

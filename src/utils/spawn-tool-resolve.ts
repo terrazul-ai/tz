@@ -7,9 +7,9 @@ import type { ToolSpec, ToolType } from '../types/context.js';
 
 /**
  * Tools that support spawning (interactive CLI execution).
- * Currently only Claude and Codex have spawning support.
+ * Claude, Codex, and Gemini have spawning support.
  */
-const SPAWNABLE_TOOLS: ReadonlySet<ToolType> = new Set(['claude', 'codex']);
+const SPAWNABLE_TOOLS: ReadonlySet<ToolType> = new Set(['claude', 'codex', 'gemini']);
 
 export interface ResolveSpawnToolOptions {
   /** CLI flag override (highest precedence) */
@@ -22,14 +22,14 @@ export interface ResolveSpawnToolOptions {
 
 /**
  * Validate that a tool type supports spawning.
- * Throws a clear error for unsupported tools like gemini.
+ * Throws a clear error for unsupported tools like cursor or copilot.
  */
 function validateSpawnableTool(tool: ToolType, source: string): void {
   if (!SPAWNABLE_TOOLS.has(tool)) {
     throw new TerrazulError(
       ErrorCode.INVALID_ARGUMENT,
       `Tool '${tool}' does not support interactive spawning. ` +
-        `Only 'claude' and 'codex' can be used with 'tz run'. ` +
+        `Only 'claude', 'codex', or 'gemini' can be used with 'tz run'. ` +
         `(specified via ${source})`,
     );
   }
