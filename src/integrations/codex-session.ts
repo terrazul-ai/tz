@@ -200,6 +200,8 @@ async function copyAuthFile(tempCodexHome: string): Promise<void> {
 
   try {
     await fs.copyFile(sourceAuthPath, destAuthPath);
+    // Set restrictive permissions on auth file (contains sensitive tokens)
+    await fs.chmod(destAuthPath, 0o600);
   } catch {
     // auth.json might not exist if user hasn't authenticated yet, that's OK
   }
@@ -223,6 +225,8 @@ async function persistAuthFile(tempCodexHome: string): Promise<void> {
 
     // Copy back to user's CODEX_HOME
     await fs.copyFile(sourceAuthPath, destAuthPath);
+    // Set restrictive permissions on auth file (contains sensitive tokens)
+    await fs.chmod(destAuthPath, 0o600);
   } catch {
     // auth.json might not exist in temp (user didn't authenticate), that's OK
   }
