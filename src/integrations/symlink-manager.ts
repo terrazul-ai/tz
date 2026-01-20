@@ -22,11 +22,11 @@ export const TOOL_ROOT_DIRECTORIES: Record<ToolType, string> = {
 /**
  * Operational directories supported by each tool type.
  * - Claude: agents, commands, skills
- * - Codex: skills only (Codex uses AGENTS.md for context, skills for slash commands)
+ * - Codex: skills (project-level), prompts (user-level only, routed to CODEX_HOME)
  */
 export const TOOL_OPERATIONAL_DIRS: Record<ToolType, string[]> = {
   claude: ['agents', 'commands', 'skills'],
-  codex: ['skills'],
+  codex: ['skills', 'prompts'],
   gemini: [],
 };
 
@@ -76,6 +76,12 @@ export interface CreateSymlinksOptions {
    * Use this for exclusive package runs (e.g., tz run @scope/pkg).
    */
   exclusive?: boolean;
+  /**
+   * Custom CODEX_HOME path for Codex prompts.
+   * Codex prompts are user-level only, so we route them to CODEX_HOME/prompts/
+   * instead of .codex/prompts/ (which Codex doesn't read).
+   */
+  codexHome?: string;
 }
 
 /**
@@ -254,7 +260,14 @@ export async function createSymlinks(options: CreateSymlinksOptions): Promise<{
   removed: string[];
   errors: Array<{ path: string; error: string }>;
 }> {
-  const { projectRoot, packages, dryRun = false, renderedFiles = [], exclusive = false } = options;
+  const {
+    projectRoot,
+    packages,
+    dryRun = false,
+    renderedFiles = [],
+    exclusive = false,
+    codexHome,
+  } = options;
   const registryPath = options.registryPath ?? path.join(projectRoot, '.terrazul', 'symlinks.json');
 
   const created: string[] = [];
@@ -308,7 +321,7 @@ export async function createSymlinks(options: CreateSymlinksOptions): Promise<{
 
     // Get tool-specific root and operational dirs for this file
     const toolRootName = TOOL_ROOT_DIRECTORIES[tool] ?? '.claude';
-    const toolRoot = path.join(projectRoot, toolRootName);
+    let toolRoot = path.join(projectRoot, toolRootName);
     const operationalDirs = TOOL_OPERATIONAL_DIRS[tool] ?? [];
 
     // Skip files for tools with no operational directories
@@ -331,6 +344,12 @@ export async function createSymlinks(options: CreateSymlinksOptions): Promise<{
     // Skip files not in operational directories
     if (!targetDirName) {
       continue;
+    }
+
+    // CODEX PROMPTS: Route to CODEX_HOME (user-level) instead of .codex (project-level)
+    // Codex only reads prompts from $CODEX_HOME/prompts/, not .codex/prompts/
+    if (tool === 'codex' && targetDirName === 'prompts' && codexHome) {
+      toolRoot = codexHome;
     }
 
     // Special handling for skills: symlink the skill directory, not individual files
