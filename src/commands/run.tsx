@@ -15,6 +15,11 @@ import {
   generateMCPConfigFile,
   spawnClaudeCodeHeadless,
 } from '../integrations/claude-code.js';
+import {
+  cleanupCodexSession,
+  createCodexSession,
+  type CodexSessionConfig,
+} from '../integrations/codex-session.js';
 import { createSymlinks } from '../integrations/symlink-manager.js';
 import { loadMCPConfig, spawnTool } from '../integrations/tool-spawner.js';
 import { AskAgentSpinner, type AskAgentTask } from '../ui/apply/AskAgentSpinner.js';
@@ -492,11 +497,12 @@ async function handleContextInjection(
 }
 
 /**
- * Create symlinks for operational files (agents/, commands/, hooks/, skills/)
+ * Create symlinks for operational files (agents/, commands/, hooks/, skills/, prompts/)
  * Routes each file to its correct tool directory based on file.tool property
  *
  * @param exclusive - When true, removes symlinks from packages NOT in the target list.
  *                    Use this for specific package runs or profile runs.
+ * @param codexHome - Optional custom CODEX_HOME for routing Codex prompts.
  */
 async function handleSymlinkCreation(
   ctx: CLIContext,
@@ -504,6 +510,7 @@ async function handleSymlinkCreation(
   packages: string[],
   renderedFiles: Awaited<ReturnType<typeof planAndRender>>['renderedFiles'],
   exclusive: boolean = false,
+  codexHome?: string,
 ): Promise<void> {
   // Skip if no packages
   if (packages.length === 0) {
@@ -515,6 +522,7 @@ async function handleSymlinkCreation(
     packages,
     renderedFiles,
     exclusive,
+    codexHome,
   });
 
   // Log removed symlinks (exclusive mode)
@@ -592,6 +600,7 @@ async function prepareMCPConfig(
  * consistent tool selection between rendering and spawning.
  *
  * @param prompt - If provided, runs in headless mode (Claude only)
+ * @param codexHome - Optional CODEX_HOME path for Codex sessions
  */
 async function spawnToolWithConfig(
   ctx: CLIContext,
@@ -599,6 +608,7 @@ async function spawnToolWithConfig(
   mcpResult: MCPConfigResult,
   tool: ToolSpec,
   prompt?: string,
+  codexHome?: string,
 ): Promise<number> {
   const isHeadless = !!prompt;
 
@@ -640,12 +650,13 @@ async function spawnToolWithConfig(
   // Load MCP config content for Codex (Claude uses file path)
   const mcpConfig = await loadMCPConfig(mcpResult.configPath);
 
-  // Spawn the tool with MCP config
+  // Spawn the tool with MCP config (and CODEX_HOME for Codex)
   const exitCode = await spawnTool({
     tool,
     cwd: projectRoot,
     mcpConfig,
     mcpConfigPath: mcpResult.configPath,
+    codexHome,
   });
 
   return exitCode;
@@ -906,32 +917,45 @@ export function registerRunCommand(
           // only those package's symlinks should be present (remove others)
           const exclusiveMode = Boolean(packageName || profileName);
 
-          // Create symlinks for operational files
-          await handleSymlinkCreation(
-            ctx,
-            projectRoot,
-            packages,
-            result.renderedFiles,
-            exclusiveMode,
-          );
-
           // Prepare MCP config
           const mcpResult = await prepareMCPConfig(ctx, projectRoot, agentModulesRoot, packages);
 
-          // Spawn tool (with cleanup) - uses the same resolved tool spec
+          // Create Codex session for user-level files (prompts, config, trust)
+          let codexSession: CodexSessionConfig | undefined;
+          if (toolSpec.type === 'codex') {
+            const mcpConfig = await loadMCPConfig(mcpResult.configPath);
+            codexSession = await createCodexSession(projectRoot, mcpConfig.mcpServers);
+          }
+
           try {
+            // Create symlinks for operational files
+            // Pass codexHome for Codex prompts routing
+            await handleSymlinkCreation(
+              ctx,
+              projectRoot,
+              packages,
+              result.renderedFiles,
+              exclusiveMode,
+              codexSession?.codexHome,
+            );
+
+            // Spawn tool (with cleanup) - uses the same resolved tool spec
             const exitCode = await spawnToolWithConfig(
               ctx,
               projectRoot,
               mcpResult,
               toolSpec,
               opts.prompt,
+              codexSession?.codexHome,
             );
-            await cleanupMCPConfig(mcpResult.configPath);
             process.exitCode = exitCode;
-          } catch (error) {
+          } finally {
+            // Clean up MCP config
             await cleanupMCPConfig(mcpResult.configPath);
-            throw error;
+            // Clean up Codex session (persists trust settings)
+            if (codexSession) {
+              await cleanupCodexSession(codexSession);
+            }
           }
         } catch (error) {
           const err = error as TerrazulError | Error;

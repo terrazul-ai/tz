@@ -12,6 +12,8 @@ export interface SpawnToolOptions {
   mcpConfig?: MCPConfig;
   mcpConfigPath?: string;
   additionalArgs?: string[];
+  /** Custom CODEX_HOME path for Codex sessions (user-level prompts, config) */
+  codexHome?: string;
 }
 
 /**
@@ -62,10 +64,6 @@ async function spawnClaudeCodeInternal(options: SpawnToolOptions): Promise<numbe
 
     const workingDir = cwd || process.cwd();
 
-    // Log the full command for debugging
-    console.log(`Executing: ${command} ${args.join(' ')}`);
-    console.log(`Working directory: ${workingDir}`);
-
     const child = spawn(command, args, {
       cwd: workingDir,
       stdio: 'inherit',
@@ -99,7 +97,7 @@ async function spawnClaudeCodeInternal(options: SpawnToolOptions): Promise<numbe
  * For interactive spawning, we just run 'codex' directly.
  */
 async function spawnCodexInternal(options: SpawnToolOptions): Promise<number> {
-  const { tool, cwd, mcpConfig, additionalArgs = [] } = options;
+  const { tool, cwd, mcpConfig, additionalArgs = [], codexHome } = options;
 
   return new Promise((resolve, reject) => {
     const command = tool.command ?? 'codex';
@@ -131,15 +129,20 @@ async function spawnCodexInternal(options: SpawnToolOptions): Promise<number> {
 
     const workingDir = cwd || process.cwd();
 
-    // Log the full command for debugging
-    console.log(`Executing: ${command} ${args.join(' ')}`);
-    console.log(`Working directory: ${workingDir}`);
+    // Build environment with optional CODEX_HOME override
+    const env: Record<string, string | undefined> = {
+      ...process.env,
+      ...expandEnvVars(tool.env),
+    };
+    if (codexHome) {
+      env.CODEX_HOME = codexHome;
+    }
 
     const child = spawn(command, args, {
       cwd: workingDir,
       stdio: 'inherit',
       shell: false,
-      env: { ...process.env, ...expandEnvVars(tool.env) },
+      env,
     });
 
     child.on('error', (error) => {

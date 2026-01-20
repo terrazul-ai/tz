@@ -1546,4 +1546,173 @@ describe('symlink-manager', () => {
       expect(codexSkills).not.toContain('@user-multi-tool-claude-skill');
     });
   });
+
+  describe('codex prompts routing', () => {
+    it('should route Codex prompts to codexHome/prompts/ when codexHome is provided', async () => {
+      // Setup custom CODEX_HOME
+      const customCodexHome = path.join(tmpDir, '.terrazul', 'codex-home');
+      await fs.mkdir(path.join(customCodexHome, 'prompts'), { recursive: true });
+
+      // Setup Codex prompts directory
+      const codexDir = path.join(tmpDir, '.codex');
+      await fs.mkdir(codexDir, { recursive: true });
+
+      const pkgRoot = path.join(agentModulesDir, '@user', 'qa-engineer');
+      const promptsDir = path.join(pkgRoot, 'codex', 'prompts');
+      await fs.mkdir(promptsDir, { recursive: true });
+
+      await fs.writeFile(path.join(promptsDir, 'review.md'), '# Code Review Prompt');
+
+      const renderedFiles = [
+        {
+          pkgName: '@user/qa-engineer',
+          source: path.join(promptsDir, 'review.md'),
+          tool: 'codex' as const,
+          isMcpConfig: false,
+        },
+      ];
+
+      const result = await createSymlinks({
+        projectRoot: tmpDir,
+        packages: ['@user/qa-engineer'],
+        renderedFiles,
+        codexHome: customCodexHome,
+      });
+
+      expect(result.created).toHaveLength(1);
+
+      // Verify symlink is in CODEX_HOME/prompts/, not .codex/prompts/
+      const codexHomePrompts = await fs.readdir(path.join(customCodexHome, 'prompts'));
+      expect(codexHomePrompts).toContain('@user-qa-engineer-review.md');
+
+      // Verify .codex/prompts/ was NOT created (prompts go to CODEX_HOME only)
+      const codexPromptsDir = path.join(codexDir, 'prompts');
+      const codexPromptsExists = await fs
+        .access(codexPromptsDir)
+        .then(() => true)
+        .catch(() => false);
+      expect(codexPromptsExists).toBe(false);
+    });
+
+    it('should route Codex prompts to .codex/prompts/ when codexHome is not provided', async () => {
+      const codexDir = path.join(tmpDir, '.codex');
+      await fs.mkdir(codexDir, { recursive: true });
+
+      const pkgRoot = path.join(agentModulesDir, '@user', 'qa-engineer');
+      const promptsDir = path.join(pkgRoot, 'codex', 'prompts');
+      await fs.mkdir(promptsDir, { recursive: true });
+
+      await fs.writeFile(path.join(promptsDir, 'review.md'), '# Code Review Prompt');
+
+      const renderedFiles = [
+        {
+          pkgName: '@user/qa-engineer',
+          source: path.join(promptsDir, 'review.md'),
+          tool: 'codex' as const,
+          isMcpConfig: false,
+        },
+      ];
+
+      const result = await createSymlinks({
+        projectRoot: tmpDir,
+        packages: ['@user/qa-engineer'],
+        renderedFiles,
+        // codexHome not provided
+      });
+
+      expect(result.created).toHaveLength(1);
+
+      // Verify symlink is in .codex/prompts/
+      const codexPrompts = await fs.readdir(path.join(codexDir, 'prompts'));
+      expect(codexPrompts).toContain('@user-qa-engineer-review.md');
+    });
+
+    it('should create both skills and prompts symlinks for Codex packages', async () => {
+      const customCodexHome = path.join(tmpDir, '.terrazul', 'codex-home');
+      await fs.mkdir(path.join(customCodexHome, 'prompts'), { recursive: true });
+
+      const codexDir = path.join(tmpDir, '.codex');
+      await fs.mkdir(codexDir, { recursive: true });
+
+      const pkgRoot = path.join(agentModulesDir, '@user', 'qa-engineer');
+      const skillDir = path.join(pkgRoot, 'codex', 'skills', 'api-test');
+      const promptsDir = path.join(pkgRoot, 'codex', 'prompts');
+
+      await fs.mkdir(skillDir, { recursive: true });
+      await fs.mkdir(promptsDir, { recursive: true });
+
+      await fs.writeFile(path.join(skillDir, 'SKILL.md'), '# API Test Skill');
+      await fs.writeFile(path.join(promptsDir, 'review.md'), '# Code Review Prompt');
+
+      const renderedFiles = [
+        {
+          pkgName: '@user/qa-engineer',
+          source: path.join(skillDir, 'SKILL.md'),
+          tool: 'codex' as const,
+          isMcpConfig: false,
+        },
+        {
+          pkgName: '@user/qa-engineer',
+          source: path.join(promptsDir, 'review.md'),
+          tool: 'codex' as const,
+          isMcpConfig: false,
+        },
+      ];
+
+      const result = await createSymlinks({
+        projectRoot: tmpDir,
+        packages: ['@user/qa-engineer'],
+        renderedFiles,
+        codexHome: customCodexHome,
+      });
+
+      // 1 skill + 1 prompt
+      expect(result.created).toHaveLength(2);
+
+      // Skills go to .codex/skills/ (project-level)
+      const codexSkills = await fs.readdir(path.join(codexDir, 'skills'));
+      expect(codexSkills).toContain('@user-qa-engineer-api-test');
+
+      // Prompts go to CODEX_HOME/prompts/ (user-level)
+      const codexHomePrompts = await fs.readdir(path.join(customCodexHome, 'prompts'));
+      expect(codexHomePrompts).toContain('@user-qa-engineer-review.md');
+    });
+
+    it('should track prompts in registry with codexHome path', async () => {
+      const customCodexHome = path.join(tmpDir, '.terrazul', 'codex-home');
+      await fs.mkdir(path.join(customCodexHome, 'prompts'), { recursive: true });
+
+      const pkgRoot = path.join(agentModulesDir, '@user', 'pkg');
+      const promptsDir = path.join(pkgRoot, 'codex', 'prompts');
+      await fs.mkdir(promptsDir, { recursive: true });
+
+      await fs.writeFile(path.join(promptsDir, 'my-prompt.md'), '# My Prompt');
+
+      const renderedFiles = [
+        {
+          pkgName: '@user/pkg',
+          source: path.join(promptsDir, 'my-prompt.md'),
+          tool: 'codex' as const,
+          isMcpConfig: false,
+        },
+      ];
+
+      await createSymlinks({
+        projectRoot: tmpDir,
+        packages: ['@user/pkg'],
+        renderedFiles,
+        codexHome: customCodexHome,
+      });
+
+      // Read registry
+      const registryPath = path.join(tmpDir, '.terrazul', 'symlinks.json');
+      const registryContent = await fs.readFile(registryPath, 'utf8');
+      const registry = JSON.parse(registryContent);
+
+      // Registry key should include the codexHome path
+      const symlinkKey = '.terrazul/codex-home/prompts/@user-pkg-my-prompt.md';
+      expect(registry.symlinks[symlinkKey]).toBeDefined();
+      expect(registry.symlinks[symlinkKey].tool).toBe('codex');
+    });
+  });
 });

@@ -279,6 +279,40 @@ describe('tool-spawner', () => {
         expect(spawnOptions.env?.MY_VAR).toBe('literal-value');
       });
     });
+
+    describe('CODEX_HOME support', () => {
+      it('sets CODEX_HOME env var when codexHome is provided for Codex', async () => {
+        mockSpawn.mockReturnValue(createMockChildProcess());
+
+        const tool: ToolSpec = { type: 'codex' };
+        await spawnTool({ tool, cwd: tmpDir, codexHome: '/custom/codex/home' });
+
+        const spawnOptions = mockSpawn.mock.calls[0]?.[2] as { env?: Record<string, string> };
+        expect(spawnOptions.env?.CODEX_HOME).toBe('/custom/codex/home');
+      });
+
+      it('does not set CODEX_HOME env var when codexHome is not provided', async () => {
+        mockSpawn.mockReturnValue(createMockChildProcess());
+
+        const tool: ToolSpec = { type: 'codex' };
+        await spawnTool({ tool, cwd: tmpDir });
+
+        const spawnOptions = mockSpawn.mock.calls[0]?.[2] as { env?: Record<string, string> };
+        // CODEX_HOME should not be explicitly set (may inherit from process.env)
+        expect(spawnOptions.env?.CODEX_HOME).toBeUndefined();
+      });
+
+      it('does not set CODEX_HOME for Claude even if codexHome is provided', async () => {
+        mockSpawn.mockReturnValue(createMockChildProcess());
+
+        const tool: ToolSpec = { type: 'claude' };
+        await spawnTool({ tool, cwd: tmpDir, codexHome: '/custom/codex/home' });
+
+        const spawnOptions = mockSpawn.mock.calls[0]?.[2] as { env?: Record<string, string> };
+        // Claude ignores codexHome
+        expect(spawnOptions.env?.CODEX_HOME).toBeUndefined();
+      });
+    });
   });
 
   describe('loadMCPConfig', () => {
