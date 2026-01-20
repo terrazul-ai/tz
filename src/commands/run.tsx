@@ -15,6 +15,12 @@ import {
   generateMCPConfigFile,
   spawnClaudeCode,
 } from '../integrations/claude-code.js';
+import {
+  cleanupCodexSession,
+  createCodexSession,
+  spawnCodex,
+  type CodexSessionConfig,
+} from '../integrations/codex.js';
 import { createSymlinks } from '../integrations/symlink-manager.js';
 import { AskAgentSpinner, type AskAgentTask } from '../ui/apply/AskAgentSpinner.js';
 import { generateAskAgentSummary } from '../utils/ask-agent-summary.js';
@@ -493,22 +499,28 @@ async function handleSymlinkCreation(
   packages: string[],
   renderedFiles: Awaited<ReturnType<typeof planAndRender>>['renderedFiles'],
   toolOverride: 'claude' | 'codex' | 'cursor' | 'copilot' | undefined,
+  tempCodexHome?: string,
 ): Promise<void> {
   // Skip if no packages
   if (packages.length === 0) {
     return;
   }
 
+  const activeTool = toolOverride ?? 'claude';
   const symlinkResult = await createSymlinks({
     projectRoot,
     packages,
     renderedFiles,
-    activeTool: toolOverride ?? 'claude',
+    activeTool,
+    tempCodexHome,
   });
 
   // Log created symlinks
+  const targetDirName = activeTool === 'codex' ? 'CODEX_HOME' : `.${activeTool}/`;
   if (symlinkResult.created.length > 0) {
-    ctx.logger.info(`Created ${symlinkResult.created.length} symlink(s) in .claude/ directories`);
+    ctx.logger.info(
+      `Created ${symlinkResult.created.length} symlink(s) in ${targetDirName} directories`,
+    );
     if (ctx.logger.isVerbose()) {
       for (const link of symlinkResult.created) {
         const relPath = path.relative(projectRoot, link);
@@ -594,6 +606,51 @@ async function spawnClaudeCodeWithConfig(
 
   // Spawn Claude Code with MCP config
   const exitCode = await spawnClaudeCode(mcpResult.configPath, [], projectRoot, model);
+
+  return exitCode;
+}
+
+/**
+ * Count MCP servers in a Codex config file
+ */
+async function countCodexMCPServers(configPath: string): Promise<number> {
+  try {
+    const content = await fs.readFile(configPath, 'utf8');
+    const matches = content.match(/\[mcp_servers\./g);
+    return matches ? matches.length : 0;
+  } catch {
+    return 0;
+  }
+}
+
+/**
+ * Spawn Codex with isolated session or skip in non-interactive mode
+ */
+async function spawnCodexWithSession(
+  ctx: CLIContext,
+  projectRoot: string,
+  session: CodexSessionConfig,
+  mcpServerCount: number,
+): Promise<number> {
+  // Skip spawning Codex in non-interactive environments (tests, CI)
+  const skipSpawn = process.env.TZ_SKIP_SPAWN === 'true' || !process.stdout.isTTY;
+
+  if (skipSpawn) {
+    ctx.logger.info(
+      `Rendered templates with ${mcpServerCount} MCP server(s). Skipping Codex launch (non-interactive).`,
+    );
+    return 0;
+  }
+
+  // Log launch message
+  if (mcpServerCount > 0) {
+    ctx.logger.info(`Launching Codex with ${mcpServerCount} MCP server(s)...`);
+  } else {
+    ctx.logger.info('Launching Codex...');
+  }
+
+  // Spawn Codex with isolated CODEX_HOME
+  const exitCode = await spawnCodex(session, [], projectRoot);
 
   return exitCode;
 }
@@ -779,7 +836,7 @@ export function registerRunCommand(
   program
     .command('run')
     .argument('[package]', 'Package spec like @scope/name@1.0.0 (will auto-install if needed)')
-    .description('Install (if needed), render templates, and execute with Claude Code')
+    .description('Install (if needed), render templates, and execute with Claude Code or Codex')
     .option('--profile <profile>', 'Limit execution to the packages under the given profile')
     .option('--tool <tool>', 'Use a specific answer tool (claude or codex)')
     .option('--no-tool-safe-mode', 'Disable safe mode for tool execution')
@@ -833,26 +890,65 @@ export function registerRunCommand(
           // Discover packages for rendering, symlinks, and MCP config
           const packages = await discoverPackagesForMCP(projectRoot, packageName, profileName);
 
-          // Create symlinks for operational files
-          await handleSymlinkCreation(
-            ctx,
-            projectRoot,
-            packages,
-            result.renderedFiles,
-            renderOpts.toolOverride,
-          );
+          // Determine active tool
+          const activeTool = renderOpts.toolOverride ?? 'claude';
 
-          // Prepare MCP config
-          const mcpResult = await prepareMCPConfig(ctx, projectRoot, agentModulesRoot, packages);
+          // Handle tool-specific spawning
+          if (activeTool === 'codex') {
+            // Create Codex session with isolated CODEX_HOME
+            const session = await createCodexSession(projectRoot, packages, agentModulesRoot, {
+              ctx,
+            });
 
-          // Spawn Claude Code (with cleanup)
-          try {
-            const exitCode = await spawnClaudeCodeWithConfig(ctx, projectRoot, mcpResult);
-            await cleanupMCPConfig(mcpResult.configPath);
-            process.exitCode = exitCode;
-          } catch (error) {
-            await cleanupMCPConfig(mcpResult.configPath);
-            throw error;
+            try {
+              // Create symlinks for operational files (in temp CODEX_HOME)
+              await handleSymlinkCreation(
+                ctx,
+                projectRoot,
+                packages,
+                result.renderedFiles,
+                activeTool,
+                session.tempCodexHome,
+              );
+
+              // Get MCP server count for logging
+              const mcpServerCount = await countCodexMCPServers(session.configPath);
+
+              // Spawn Codex (with cleanup)
+              const exitCode = await spawnCodexWithSession(
+                ctx,
+                projectRoot,
+                session,
+                mcpServerCount,
+              );
+              await cleanupCodexSession(session);
+              process.exitCode = exitCode;
+            } catch (error) {
+              await cleanupCodexSession(session);
+              throw error;
+            }
+          } else {
+            // Create symlinks for operational files (in project root)
+            await handleSymlinkCreation(
+              ctx,
+              projectRoot,
+              packages,
+              result.renderedFiles,
+              renderOpts.toolOverride,
+            );
+
+            // Prepare MCP config for Claude
+            const mcpResult = await prepareMCPConfig(ctx, projectRoot, agentModulesRoot, packages);
+
+            // Spawn Claude Code (with cleanup)
+            try {
+              const exitCode = await spawnClaudeCodeWithConfig(ctx, projectRoot, mcpResult);
+              await cleanupMCPConfig(mcpResult.configPath);
+              process.exitCode = exitCode;
+            } catch (error) {
+              await cleanupMCPConfig(mcpResult.configPath);
+              throw error;
+            }
           }
         } catch (error) {
           const err = error as TerrazulError | Error;

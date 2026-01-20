@@ -55,6 +55,72 @@ export interface CreateSymlinksOptions {
    * Active tool to create symlinks for (default: 'claude')
    */
   activeTool?: ToolType;
+  /**
+   * Temporary CODEX_HOME directory for Codex sessions
+   * Required when activeTool is 'codex'
+   */
+  tempCodexHome?: string;
+}
+
+/**
+ * Get the target directory for symlinks based on active tool
+ *
+ * @param activeTool - The active tool type
+ * @param projectRoot - Project root directory
+ * @param tempCodexHome - Temporary CODEX_HOME for Codex sessions
+ * @returns The target directory for symlinks
+ */
+export function getToolTargetDir(
+  activeTool: ToolType,
+  projectRoot: string,
+  tempCodexHome?: string,
+): string {
+  switch (activeTool) {
+    case 'claude': {
+      return path.join(projectRoot, '.claude');
+    }
+    case 'codex': {
+      if (!tempCodexHome) {
+        throw new Error('tempCodexHome is required for Codex tool');
+      }
+      return tempCodexHome;
+    }
+    case 'cursor': {
+      return path.join(projectRoot, '.cursor');
+    }
+    case 'copilot': {
+      return path.join(projectRoot, '.github');
+    }
+    default: {
+      return path.join(projectRoot, '.claude');
+    }
+  }
+}
+
+/**
+ * Get operational directories for a specific tool
+ *
+ * @param activeTool - The active tool type
+ * @returns Array of directory names that should be symlinked
+ */
+export function getOperationalDirs(activeTool: ToolType): string[] {
+  switch (activeTool) {
+    case 'claude': {
+      return ['agents', 'commands', 'skills'];
+    }
+    case 'codex': {
+      return ['skills', 'prompts'];
+    }
+    case 'cursor': {
+      return ['skills'];
+    }
+    case 'copilot': {
+      return ['skills'];
+    }
+    default: {
+      return ['agents', 'commands', 'skills'];
+    }
+  }
 }
 
 /**
@@ -129,7 +195,7 @@ async function createSkillDirectorySymlink(options: {
   pkgName: string;
   skillDir: string;
   skillName: string;
-  claudeRoot: string;
+  toolTargetDir: string;
   projectRoot: string;
   registry: SymlinkRegistry;
   activeTool: ToolType;
@@ -139,12 +205,12 @@ async function createSkillDirectorySymlink(options: {
   skipped?: string;
   error?: { path: string; error: string };
 }> {
-  const { pkgName, skillDir, skillName, claudeRoot, projectRoot, registry, activeTool, dryRun } =
+  const { pkgName, skillDir, skillName, toolTargetDir, projectRoot, registry, activeTool, dryRun } =
     options;
 
   // Generate namespaced symlink path for the directory
   const namespacedName = generateNamespacedPath(pkgName, skillName, true);
-  const symlinkPath = path.join(claudeRoot, 'skills', namespacedName);
+  const symlinkPath = path.join(toolTargetDir, 'skills', namespacedName);
 
   // Check if symlink already exists and points to same source
   if (shouldSkipSymlink(symlinkPath, skillDir, activeTool, projectRoot, registry)) {
@@ -195,10 +261,12 @@ export async function createSymlinks(options: CreateSymlinksOptions): Promise<{
     dryRun = false,
     renderedFiles = [],
     activeTool = 'claude',
+    tempCodexHome,
   } = options;
   const registryPath = options.registryPath ?? path.join(projectRoot, '.terrazul', 'symlinks.json');
 
-  const claudeRoot = path.join(projectRoot, '.claude');
+  // Get target directory based on active tool
+  const toolTargetDir = getToolTargetDir(activeTool, projectRoot, tempCodexHome);
 
   const created: string[] = [];
   const skipped: string[] = [];
@@ -226,8 +294,8 @@ export async function createSymlinks(options: CreateSymlinksOptions): Promise<{
     filesToProcess = filesToProcess.filter((f) => packages.includes(f.pkgName));
   }
 
-  // Directories to check for symlinkable files (hooks excluded - not supported by Claude)
-  const operationalDirs = ['agents', 'commands', 'skills'];
+  // Get operational directories based on active tool
+  const operationalDirs = getOperationalDirs(activeTool);
 
   // Track skill directories we've already processed to avoid duplicates
   // Key: skillDir absolute path, Value: true (processed)
@@ -287,7 +355,7 @@ export async function createSymlinks(options: CreateSymlinksOptions): Promise<{
         pkgName,
         skillDir,
         skillName,
-        claudeRoot,
+        toolTargetDir,
         projectRoot,
         registry,
         activeTool,
@@ -301,10 +369,10 @@ export async function createSymlinks(options: CreateSymlinksOptions): Promise<{
       continue;
     }
 
-    // For non-skill files (agents, commands): create file symlinks as before
+    // For non-skill files (agents, commands, prompts): create file symlinks
     // Generate namespaced symlink path
     const namespacedName = generateNamespacedPath(pkgName, basename, false);
-    const symlinkPath = path.join(claudeRoot, targetDirName, namespacedName);
+    const symlinkPath = path.join(toolTargetDir, targetDirName, namespacedName);
 
     // Check if symlink already exists and points to same source
     const relSymlinkPath = path.relative(projectRoot, symlinkPath);

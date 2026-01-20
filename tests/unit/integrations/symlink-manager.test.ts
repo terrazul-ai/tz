@@ -4,7 +4,12 @@ import path from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { createSymlinks, removeSymlinks } from '../../../src/integrations/symlink-manager.js';
+import {
+  createSymlinks,
+  getOperationalDirs,
+  getToolTargetDir,
+  removeSymlinks,
+} from '../../../src/integrations/symlink-manager.js';
 
 describe('symlink-manager', () => {
   let tmpDir: string;
@@ -854,6 +859,177 @@ describe('symlink-manager', () => {
         .then(() => true)
         .catch(() => false);
       expect(exists).toBe(false);
+    });
+  });
+
+  describe('getToolTargetDir', () => {
+    it('should return .claude for claude tool', () => {
+      const result = getToolTargetDir('claude', tmpDir);
+      expect(result).toBe(path.join(tmpDir, '.claude'));
+    });
+
+    it('should return tempCodexHome for codex tool', () => {
+      const tempCodexHome = '/tmp/tz-codex-123';
+      const result = getToolTargetDir('codex', tmpDir, tempCodexHome);
+      expect(result).toBe(tempCodexHome);
+    });
+
+    it('should throw error for codex tool without tempCodexHome', () => {
+      expect(() => getToolTargetDir('codex', tmpDir)).toThrow('tempCodexHome is required');
+    });
+
+    it('should return .cursor for cursor tool', () => {
+      const result = getToolTargetDir('cursor', tmpDir);
+      expect(result).toBe(path.join(tmpDir, '.cursor'));
+    });
+
+    it('should return .github for copilot tool', () => {
+      const result = getToolTargetDir('copilot', tmpDir);
+      expect(result).toBe(path.join(tmpDir, '.github'));
+    });
+  });
+
+  describe('getOperationalDirs', () => {
+    it('should return agents, commands, skills for claude tool', () => {
+      const result = getOperationalDirs('claude');
+      expect(result).toEqual(['agents', 'commands', 'skills']);
+    });
+
+    it('should return skills, prompts for codex tool', () => {
+      const result = getOperationalDirs('codex');
+      expect(result).toEqual(['skills', 'prompts']);
+    });
+
+    it('should return skills for cursor tool', () => {
+      const result = getOperationalDirs('cursor');
+      expect(result).toEqual(['skills']);
+    });
+
+    it('should return skills for copilot tool', () => {
+      const result = getOperationalDirs('copilot');
+      expect(result).toEqual(['skills']);
+    });
+  });
+
+  describe('Codex tool integration', () => {
+    let codexDir: string;
+
+    beforeEach(async () => {
+      // Create a temp Codex home directory
+      codexDir = await fs.mkdtemp(path.join(os.tmpdir(), 'tz-codex-home-'));
+      await fs.mkdir(path.join(codexDir, 'skills'), { recursive: true });
+      await fs.mkdir(path.join(codexDir, 'prompts'), { recursive: true });
+    });
+
+    afterEach(async () => {
+      try {
+        await fs.rm(codexDir, { recursive: true, force: true });
+      } catch {
+        void 0;
+      }
+    });
+
+    it('should create symlinks in tempCodexHome for codex tool', async () => {
+      const pkgRoot = path.join(agentModulesDir, '@user', 'pkg');
+      const skillsDir = path.join(pkgRoot, 'codex', 'skills', 'my-skill');
+      await fs.mkdir(skillsDir, { recursive: true });
+
+      await fs.writeFile(path.join(skillsDir, 'SKILL.md'), '# Skill');
+
+      const renderedFiles = [
+        {
+          pkgName: '@user/pkg',
+          source: path.join(skillsDir, 'SKILL.md'),
+          tool: 'codex' as const,
+          isMcpConfig: false,
+        },
+      ];
+
+      const result = await createSymlinks({
+        projectRoot: tmpDir,
+        packages: ['@user/pkg'],
+        renderedFiles,
+        activeTool: 'codex',
+        tempCodexHome: codexDir,
+      });
+
+      expect(result.created).toHaveLength(1);
+      expect(result.errors).toHaveLength(0);
+
+      // Verify symlink exists in codex directory (not .claude)
+      const skillsSymlinks = await fs.readdir(path.join(codexDir, 'skills'));
+      expect(skillsSymlinks).toContain('@user-pkg-my-skill');
+
+      // Verify symlink does NOT exist in .claude
+      const claudeSkillsPath = path.join(claudeDir, 'skills');
+      const claudeSkillsExists = await fs
+        .access(claudeSkillsPath)
+        .then(() => true)
+        .catch(() => false);
+      if (claudeSkillsExists) {
+        const claudeSkillsSymlinks = await fs.readdir(claudeSkillsPath);
+        expect(claudeSkillsSymlinks).not.toContain('@user-pkg-my-skill');
+      }
+    });
+
+    it('should create symlinks for prompts directory with codex tool', async () => {
+      const pkgRoot = path.join(agentModulesDir, '@user', 'pkg');
+      const promptsDir = path.join(pkgRoot, 'codex', 'prompts');
+      await fs.mkdir(promptsDir, { recursive: true });
+
+      await fs.writeFile(path.join(promptsDir, 'my-prompt.md'), '# Prompt');
+
+      const renderedFiles = [
+        {
+          pkgName: '@user/pkg',
+          source: path.join(promptsDir, 'my-prompt.md'),
+          tool: 'codex' as const,
+          isMcpConfig: false,
+        },
+      ];
+
+      const result = await createSymlinks({
+        projectRoot: tmpDir,
+        packages: ['@user/pkg'],
+        renderedFiles,
+        activeTool: 'codex',
+        tempCodexHome: codexDir,
+      });
+
+      expect(result.created).toHaveLength(1);
+      expect(result.errors).toHaveLength(0);
+
+      // Verify symlink exists in codex prompts directory
+      const promptsSymlinks = await fs.readdir(path.join(codexDir, 'prompts'));
+      expect(promptsSymlinks).toContain('@user-pkg-my-prompt.md');
+    });
+
+    it('should skip agents directory for codex tool', async () => {
+      const pkgRoot = path.join(agentModulesDir, '@user', 'pkg');
+      const agentsDir = path.join(pkgRoot, 'codex', 'agents');
+      await fs.mkdir(agentsDir, { recursive: true });
+
+      await fs.writeFile(path.join(agentsDir, 'agent.md'), '# Agent');
+
+      const renderedFiles = [
+        {
+          pkgName: '@user/pkg',
+          source: path.join(agentsDir, 'agent.md'),
+          tool: 'codex' as const,
+          isMcpConfig: false,
+        },
+      ];
+
+      const result = await createSymlinks({
+        projectRoot: tmpDir,
+        packages: ['@user/pkg'],
+        renderedFiles,
+        activeTool: 'codex',
+        tempCodexHome: codexDir,
+      });
+
+      // agents/ is not in codex operational dirs, so it should not be created
+      expect(result.created).toHaveLength(0);
     });
   });
 });
