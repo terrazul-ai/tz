@@ -23,11 +23,12 @@ export const TOOL_ROOT_DIRECTORIES: Record<ToolType, string> = {
  * Operational directories supported by each tool type.
  * - Claude: agents, commands, skills
  * - Codex: skills (project-level), prompts (user-level only, routed to CODEX_HOME)
+ * - Gemini: commands, skills (similar to Claude)
  */
 export const TOOL_OPERATIONAL_DIRS: Record<ToolType, string[]> = {
   claude: ['agents', 'commands', 'skills'],
   codex: ['skills', 'prompts'],
-  gemini: [],
+  gemini: ['commands', 'skills'],
 };
 
 export interface RenderedFile {
