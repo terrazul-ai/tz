@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.21.0](https://github.com/terrazul-ai/tz/compare/v0.20.1...v0.21.0) (2026-01-21)
+
+
+### Features
+
+* Adds Gemini support ([#89](https://github.com/terrazul-ai/tz/issues/89)) ([0ad6327](https://github.com/terrazul-ai/tz/commit/0ad63273e4a986048476f6d4bc8d2c3126efbe33))
+* **integrations:** Add Codex skills, prompts, and trust persistence support ([#87](https://github.com/terrazul-ai/tz/issues/87)) ([51b049c](https://github.com/terrazul-ai/tz/commit/51b049c2301f9e785e57943630e2e6adb9444b74))
+
 ## [0.20.1](https://github.com/terrazul-ai/tz/compare/v0.20.0...v0.20.1) (2026-01-19)
 
 
