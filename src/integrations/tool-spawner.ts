@@ -30,10 +30,13 @@ export async function spawnTool(options: SpawnToolOptions): Promise<number> {
     case 'codex': {
       return spawnCodexInternal(options);
     }
+    case 'gemini': {
+      return spawnGeminiInternal(options);
+    }
     default: {
       throw new TerrazulError(
         ErrorCode.TOOL_NOT_FOUND,
-        `Tool '${tool.type}' does not support spawning. Use 'claude' or 'codex'.`,
+        `Tool '${tool.type}' does not support spawning. Use 'claude', 'codex', or 'gemini'.`,
       );
     }
   }
@@ -151,6 +154,66 @@ async function spawnCodexInternal(options: SpawnToolOptions): Promise<number> {
           new TerrazulError(
             ErrorCode.TOOL_NOT_FOUND,
             'Codex CLI not found. Install it from https://github.com/openai/codex',
+          ),
+        );
+      } else {
+        reject(error);
+      }
+    });
+
+    child.on('exit', (code) => {
+      resolve(code ?? 0);
+    });
+  });
+}
+
+/**
+ * Spawn Gemini CLI.
+ * Note: Gemini reads MCP config from .gemini/settings.json (project-level),
+ * so no need to pass via command-line args.
+ */
+async function spawnGeminiInternal(options: SpawnToolOptions): Promise<number> {
+  const { tool, cwd, additionalArgs = [] } = options;
+
+  return new Promise((resolve, reject) => {
+    const command = tool.command ?? 'gemini';
+    const args: string[] = [];
+
+    // Note: We don't include tool.args here because those may be for non-interactive use.
+    // For interactive spawning, just run 'gemini' directly.
+
+    // Add model if specified
+    if (tool.model && tool.model !== 'default') {
+      args.push('--model', tool.model);
+    }
+
+    // Gemini reads MCP config from .gemini/settings.json (project-level)
+    // No need to pass via command-line - it's already written there
+
+    // Add any additional args
+    args.push(...additionalArgs);
+
+    const workingDir = cwd || process.cwd();
+
+    // Build environment
+    const env: Record<string, string | undefined> = {
+      ...process.env,
+      ...expandEnvVars(tool.env),
+    };
+
+    const child = spawn(command, args, {
+      cwd: workingDir,
+      stdio: 'inherit',
+      shell: false,
+      env,
+    });
+
+    child.on('error', (error) => {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+        reject(
+          new TerrazulError(
+            ErrorCode.TOOL_NOT_FOUND,
+            'Gemini CLI not found. Install it from https://github.com/google-gemini/gemini-cli',
           ),
         );
       } else {

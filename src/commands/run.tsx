@@ -20,6 +20,11 @@ import {
   createCodexSession,
   type CodexSessionConfig,
 } from '../integrations/codex-session.js';
+import {
+  aggregateGeminiMCPConfigs,
+  cleanupGeminiMCPConfig,
+  writeGeminiMCPConfig,
+} from '../integrations/gemini-mcp.js';
 import { createSymlinks } from '../integrations/symlink-manager.js';
 import { loadMCPConfig, spawnTool } from '../integrations/tool-spawner.js';
 import { AskAgentSpinner, type AskAgentTask } from '../ui/apply/AskAgentSpinner.js';
@@ -927,6 +932,21 @@ export function registerRunCommand(
             codexSession = await createCodexSession(projectRoot, mcpConfig.mcpServers);
           }
 
+          // Write Gemini MCP config to .gemini/settings.json
+          let geminiMcpServerNames: string[] = [];
+          if (toolSpec.type === 'gemini') {
+            const geminiMcpConfig = await aggregateGeminiMCPConfigs(projectRoot, packages, {
+              agentModulesRoot,
+            });
+            if (Object.keys(geminiMcpConfig.mcpServers).length > 0) {
+              await writeGeminiMCPConfig(projectRoot, geminiMcpConfig.mcpServers);
+              geminiMcpServerNames = Object.keys(geminiMcpConfig.mcpServers);
+              ctx.logger.info(
+                `Wrote ${geminiMcpServerNames.length} MCP server(s) to .gemini/settings.json`,
+              );
+            }
+          }
+
           try {
             // Create symlinks for operational files
             // Pass codexHome for Codex prompts routing
@@ -955,6 +975,10 @@ export function registerRunCommand(
             // Clean up Codex session (persists trust settings)
             if (codexSession) {
               await cleanupCodexSession(codexSession);
+            }
+            // Clean up Gemini MCP config (remove servers we added)
+            if (geminiMcpServerNames.length > 0) {
+              await cleanupGeminiMCPConfig(projectRoot, geminiMcpServerNames);
             }
           }
         } catch (error) {

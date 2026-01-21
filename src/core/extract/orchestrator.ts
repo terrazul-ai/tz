@@ -213,6 +213,63 @@ function createClaudeMcpPlans(
   return plans;
 }
 
+function createGeminiMcpPlans(
+  mcpServers: unknown,
+  projectRootAbs: string,
+  origin: string,
+): MCPServerPlan[] {
+  if (!mcpServers || typeof mcpServers !== 'object') return [];
+  const plans: MCPServerPlan[] = [];
+  for (const [name, value] of Object.entries(mcpServers as Record<string, unknown>)) {
+    if (!value || typeof value !== 'object') continue;
+    const record = value as Record<string, unknown>;
+    // Gemini supports multiple transports: stdio (command), sse (url), http (httpUrl)
+    const commandRaw = record.command;
+    const urlRaw = record.url;
+    const httpUrlRaw = record.httpUrl;
+    // Skip if no transport is defined
+    if (
+      (typeof commandRaw !== 'string' || commandRaw.trim() === '') &&
+      (typeof urlRaw !== 'string' || urlRaw.trim() === '') &&
+      (typeof httpUrlRaw !== 'string' || httpUrlRaw.trim() === '')
+    ) {
+      continue;
+    }
+    const argsRaw = Array.isArray(record.args) ? record.args : [];
+    const envRaw = record.env && typeof record.env === 'object' ? record.env : undefined;
+    const sanitizedArgs = argsRaw
+      .filter((arg): arg is string => typeof arg === 'string')
+      .map((arg) => sanitizeText(String(arg), projectRootAbs));
+    const envEntries = envRaw
+      ? Object.entries(envRaw as Record<string, unknown>).filter(
+          (entry): entry is [string, string] => typeof entry[1] === 'string',
+        )
+      : [];
+    const sanitizedEnv = sanitizeEnv(Object.fromEntries(envEntries));
+    const sanitizedCommand =
+      typeof commandRaw === 'string' ? sanitizeText(String(commandRaw), projectRootAbs) : '';
+    const config = structuredClone(record);
+    if (sanitizedCommand) config.command = sanitizedCommand;
+    config.args = sanitizedArgs;
+    if (sanitizedEnv) config.env = sanitizedEnv;
+    else if ('env' in config) delete config.env;
+    plans.push({
+      id: `gemini:${name}`,
+      source: 'gemini',
+      name,
+      origin,
+      definition: {
+        command: sanitizedCommand,
+        args: sanitizedArgs,
+        env: sanitizedEnv ?? {},
+      },
+      config,
+    });
+  }
+  plans.sort((a, b) => a.id.localeCompare(b.id));
+  return plans;
+}
+
 export async function analyzeExtractSources(options: ExtractOptions): Promise<ExtractPlan> {
   const fromAbs = path.resolve(options.from);
   const projectRoot = resolveProjectRoot(fromAbs);
@@ -254,6 +311,11 @@ export async function analyzeExtractSources(options: ExtractOptions): Promise<Ex
       path.join(projectRoot, '.claude', 'mcp-servers.json'),
     ],
     claudeAgentsDir: [path.join(projectRoot, '.claude', 'agents')],
+    // Gemini candidates
+    geminiMd: [path.join(projectRoot, 'GEMINI.md'), path.join(projectRoot, '.gemini', 'GEMINI.md')],
+    geminiSettings: [path.join(projectRoot, '.gemini', 'settings.json')],
+    geminiCommandsDir: [path.join(projectRoot, '.gemini', 'commands')],
+    geminiSkillsDir: [path.join(projectRoot, '.gemini', 'skills')],
   } as const;
 
   const exists: Record<keyof typeof candidates, string | null> = {
@@ -263,6 +325,11 @@ export async function analyzeExtractSources(options: ExtractOptions): Promise<Ex
     claudeSettingsLocal: null,
     claudeMcp: null,
     claudeAgentsDir: null,
+    // Gemini
+    geminiMd: null,
+    geminiSettings: null,
+    geminiCommandsDir: null,
+    geminiSkillsDir: null,
   };
 
   for (const key of Object.keys(candidates) as (keyof typeof candidates)[]) {
@@ -468,6 +535,55 @@ export async function analyzeExtractSources(options: ExtractOptions): Promise<Ex
             },
       });
       manifestApplied = true;
+    }
+  }
+
+  // Gemini: GEMINI.md context file
+  if (exists.geminiMd) {
+    const src = exists.geminiMd;
+    const lst = await fs.lstat(src);
+    if (lst.isSymbolicLink()) {
+      plan.skipped.push('gemini.Readme (symlink ignored)');
+    } else {
+      const sanitized = sanitizeText(await fs.readFile(src, 'utf8'), projectRoot);
+      plan.detected['gemini.Readme'] = src;
+      addOutput({
+        id: 'gemini.Readme:templates/GEMINI.md.hbs',
+        artifactId: 'gemini.Readme',
+        relativePath: 'templates/GEMINI.md.hbs',
+        format: 'text',
+        data: sanitized,
+        manifestPatch: { tool: 'gemini', properties: { template: 'templates/GEMINI.md.hbs' } },
+      });
+    }
+  }
+
+  // Gemini: settings.json (MCP servers)
+  if (exists.geminiSettings) {
+    const src = exists.geminiSettings;
+    const lst = await fs.lstat(src);
+    if (lst.isSymbolicLink()) {
+      plan.skipped.push('gemini.settings (symlink ignored)');
+    } else {
+      const raw = await readJsonMaybe(src);
+      const sanitized = sanitizeMcpServers(raw, projectRoot) ?? {};
+      plan.detected['gemini.settings'] = src;
+      addOutput({
+        id: 'gemini.settings:templates/gemini/settings.json.hbs',
+        artifactId: 'gemini.settings',
+        relativePath: 'templates/gemini/settings.json.hbs',
+        format: 'json',
+        data: sanitized,
+        manifestPatch: {
+          tool: 'gemini',
+          properties: { mcpServers: 'templates/gemini/settings.json.hbs' },
+        },
+      });
+      // Extract MCP servers from Gemini settings
+      const settingsObj = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {};
+      if (settingsObj.mcpServers && typeof settingsObj.mcpServers === 'object') {
+        plan.mcpServers.push(...createGeminiMcpPlans(settingsObj.mcpServers, projectRoot, src));
+      }
     }
   }
 

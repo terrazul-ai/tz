@@ -220,14 +220,14 @@ describe('tool-spawner', () => {
       it('throws error for cursor tool', async () => {
         const tool: ToolSpec = { type: 'cursor' };
         await expect(spawnTool({ tool, cwd: tmpDir })).rejects.toThrow(
-          /does not support spawning.*use 'claude' or 'codex'/i,
+          /does not support spawning.*use 'claude', 'codex', or 'gemini'/i,
         );
       });
 
       it('throws error for copilot tool', async () => {
         const tool: ToolSpec = { type: 'copilot' };
         await expect(spawnTool({ tool, cwd: tmpDir })).rejects.toThrow(
-          /does not support spawning.*use 'claude' or 'codex'/i,
+          /does not support spawning.*use 'claude', 'codex', or 'gemini'/i,
         );
       });
     });

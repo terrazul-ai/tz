@@ -1,7 +1,7 @@
 import type { ExportMap } from './build-manifest.js';
 import type { Logger } from '../../utils/logger.js';
 
-export type MCPSource = 'claude' | 'codex' | 'project';
+export type MCPSource = 'claude' | 'codex' | 'gemini' | 'project';
 
 export interface ExtractOptions {
   from: string;
