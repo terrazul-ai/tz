@@ -377,3 +377,274 @@ describe('executeExtract', () => {
     expect(plan.skipped).toContain('codex.mcp_servers (enable include Codex config to bundle)');
   });
 });
+
+describe('Gemini extraction', () => {
+  let geminiPaths: TempPaths;
+
+  beforeEach(async () => {
+    const project = await mkdtemp('tz-gemini-proj-');
+    const out = await mkdtemp('tz-gemini-out-');
+
+    // Create .gemini directory structure
+    await fs.mkdir(path.join(project, '.gemini'), { recursive: true });
+    await fs.mkdir(path.join(project, '.gemini', 'commands'), { recursive: true });
+    await fs.mkdir(path.join(project, '.gemini', 'skills'), { recursive: true });
+
+    // Create GEMINI.md
+    await fs.writeFile(path.join(project, '.gemini', 'GEMINI.md'), '# Gemini Context', 'utf8');
+
+    // Create settings.json with MCP servers
+    await fs.writeFile(
+      path.join(project, '.gemini', 'settings.json'),
+      JSON.stringify({
+        mcpServers: {
+          geminiServer: {
+            command: 'node',
+            args: ['server.js'],
+          },
+        },
+      }),
+      'utf8',
+    );
+
+    // Create command files
+    await fs.writeFile(
+      path.join(project, '.gemini', 'commands', 'deploy.md'),
+      '# Deploy Command',
+      'utf8',
+    );
+    await fs.writeFile(
+      path.join(project, '.gemini', 'commands', 'test.md'),
+      '# Test Command',
+      'utf8',
+    );
+
+    // Create skill files
+    await fs.writeFile(
+      path.join(project, '.gemini', 'skills', 'coding.md'),
+      '# Coding Skill',
+      'utf8',
+    );
+
+    geminiPaths = {
+      project,
+      out,
+      codexConfig: '',
+      projectMcp: '',
+    };
+  });
+
+  afterEach(async () => {
+    await fs.rm(geminiPaths.project, { recursive: true, force: true }).catch(() => {});
+    await fs.rm(geminiPaths.out, { recursive: true, force: true }).catch(() => {});
+  });
+
+  it('detects Gemini commands directory', async () => {
+    const plan = await analyzeExtractSources({
+      from: geminiPaths.project,
+      out: geminiPaths.out,
+      name: '@test/gemini-pkg',
+      version: '1.0.0',
+    });
+
+    expect(plan.detected['gemini.commands']).toBeDefined();
+    expect(Array.isArray(plan.detected['gemini.commands'])).toBe(true);
+    const commandFiles = plan.detected['gemini.commands'] as string[];
+    expect(commandFiles).toHaveLength(2);
+    expect(commandFiles.some((f) => f.endsWith('deploy.md'))).toBe(true);
+    expect(commandFiles.some((f) => f.endsWith('test.md'))).toBe(true);
+  });
+
+  it('detects Gemini skills directory', async () => {
+    const plan = await analyzeExtractSources({
+      from: geminiPaths.project,
+      out: geminiPaths.out,
+      name: '@test/gemini-pkg',
+      version: '1.0.0',
+    });
+
+    expect(plan.detected['gemini.skills']).toBeDefined();
+    expect(Array.isArray(plan.detected['gemini.skills'])).toBe(true);
+    const skillFiles = plan.detected['gemini.skills'] as string[];
+    expect(skillFiles).toHaveLength(1);
+    expect(skillFiles[0]).toContain('coding.md');
+  });
+
+  it('generates outputs for Gemini commands with correct paths', async () => {
+    const plan = await analyzeExtractSources({
+      from: geminiPaths.project,
+      out: geminiPaths.out,
+      name: '@test/gemini-pkg',
+      version: '1.0.0',
+    });
+
+    const commandOutputs = plan.outputs.filter((o) => o.artifactId === 'gemini.commands');
+    expect(commandOutputs).toHaveLength(2);
+
+    const paths = commandOutputs.map((o) => o.relativePath).sort();
+    expect(paths).toEqual([
+      'templates/gemini/commands/deploy.md.hbs',
+      'templates/gemini/commands/test.md.hbs',
+    ]);
+  });
+
+  it('generates outputs for Gemini skills with correct paths', async () => {
+    const plan = await analyzeExtractSources({
+      from: geminiPaths.project,
+      out: geminiPaths.out,
+      name: '@test/gemini-pkg',
+      version: '1.0.0',
+    });
+
+    const skillOutputs = plan.outputs.filter((o) => o.artifactId === 'gemini.skills');
+    expect(skillOutputs).toHaveLength(1);
+    expect(skillOutputs[0].relativePath).toBe('templates/gemini/skills/coding.md.hbs');
+  });
+
+  it('adds manifest patch for Gemini commands directory', async () => {
+    const plan = await analyzeExtractSources({
+      from: geminiPaths.project,
+      out: geminiPaths.out,
+      name: '@test/gemini-pkg',
+      version: '1.0.0',
+    });
+
+    expect(plan.manifest.gemini?.commandsDir).toBe('templates/gemini/commands');
+  });
+
+  it('adds manifest patch for Gemini skills directory', async () => {
+    const plan = await analyzeExtractSources({
+      from: geminiPaths.project,
+      out: geminiPaths.out,
+      name: '@test/gemini-pkg',
+      version: '1.0.0',
+    });
+
+    expect(plan.manifest.gemini?.skillsDir).toBe('templates/gemini/skills');
+  });
+
+  it('extracts MCP servers from Gemini settings using parseGeminiSettings', async () => {
+    const plan = await analyzeExtractSources({
+      from: geminiPaths.project,
+      out: geminiPaths.out,
+      name: '@test/gemini-pkg',
+      version: '1.0.0',
+    });
+
+    expect(plan.mcpServers.some((s) => s.id === 'gemini:geminiServer')).toBe(true);
+    const geminiServer = plan.mcpServers.find((s) => s.id === 'gemini:geminiServer');
+    expect(geminiServer?.definition.command).toBe('node');
+  });
+
+  it('handles nested directories in commands', async () => {
+    // Create nested structure
+    await fs.mkdir(path.join(geminiPaths.project, '.gemini', 'commands', 'docker'), {
+      recursive: true,
+    });
+    await fs.writeFile(
+      path.join(geminiPaths.project, '.gemini', 'commands', 'docker', 'build.md'),
+      '# Docker Build',
+      'utf8',
+    );
+
+    const plan = await analyzeExtractSources({
+      from: geminiPaths.project,
+      out: geminiPaths.out,
+      name: '@test/gemini-pkg',
+      version: '1.0.0',
+    });
+
+    const commandOutputs = plan.outputs.filter((o) => o.artifactId === 'gemini.commands');
+    const nestedOutput = commandOutputs.find((o) => o.relativePath.includes('docker/build'));
+    expect(nestedOutput).toBeDefined();
+    expect(nestedOutput?.relativePath).toBe('templates/gemini/commands/docker/build.md.hbs');
+  });
+
+  it('skips symlinked commands directory', async () => {
+    // Remove existing commands dir and create symlink
+    await fs.rm(path.join(geminiPaths.project, '.gemini', 'commands'), {
+      recursive: true,
+      force: true,
+    });
+    const targetDir = await mkdtemp('tz-symlink-target-');
+    await fs.writeFile(path.join(targetDir, 'external.md'), '# External', 'utf8');
+    await fs.symlink(targetDir, path.join(geminiPaths.project, '.gemini', 'commands'));
+
+    const plan = await analyzeExtractSources({
+      from: geminiPaths.project,
+      out: geminiPaths.out,
+      name: '@test/gemini-pkg',
+      version: '1.0.0',
+    });
+
+    expect(plan.detected['gemini.commands']).toBeUndefined();
+    expect(plan.skipped).toContain('gemini.commands (symlink dir ignored)');
+
+    // Cleanup
+    await fs.rm(targetDir, { recursive: true, force: true }).catch(() => {});
+  });
+
+  it('handles empty commands directory', async () => {
+    // Clear all files from commands directory
+    const commandsDir = path.join(geminiPaths.project, '.gemini', 'commands');
+    const files = await fs.readdir(commandsDir);
+    for (const file of files) {
+      await fs.rm(path.join(commandsDir, file));
+    }
+
+    const plan = await analyzeExtractSources({
+      from: geminiPaths.project,
+      out: geminiPaths.out,
+      name: '@test/gemini-pkg',
+      version: '1.0.0',
+    });
+
+    // Empty directory should not be detected
+    expect(plan.detected['gemini.commands']).toBeUndefined();
+  });
+
+  it('writes Gemini command and skill files on execute', async () => {
+    const plan = await analyzeExtractSources({
+      from: geminiPaths.project,
+      out: geminiPaths.out,
+      name: '@test/gemini-pkg',
+      version: '1.0.0',
+    });
+
+    const logger = createLogger();
+    await executeExtract(
+      plan,
+      {
+        from: geminiPaths.project,
+        out: geminiPaths.out,
+        name: '@test/gemini-pkg',
+        version: '1.0.0',
+        includedArtifacts: Object.keys(plan.detected),
+        includedMcpServers: plan.mcpServers.map((s) => s.id),
+      },
+      logger,
+    );
+
+    // Check command files are written
+    const deployContent = await fs.readFile(
+      path.join(geminiPaths.out, 'templates', 'gemini', 'commands', 'deploy.md.hbs'),
+      'utf8',
+    );
+    expect(deployContent).toBe('# Deploy Command');
+
+    // Check skill files are written
+    const codingContent = await fs.readFile(
+      path.join(geminiPaths.out, 'templates', 'gemini', 'skills', 'coding.md.hbs'),
+      'utf8',
+    );
+    expect(codingContent).toBe('# Coding Skill');
+
+    // Check manifest has correct entries
+    const manifest = await fs.readFile(path.join(geminiPaths.out, 'agents.toml'), 'utf8');
+    const manifestDoc = TOML.parse(manifest) as Record<string, unknown>;
+    const exportsSection = (manifestDoc.exports as Record<string, unknown>) ?? {};
+    const geminiSection = (exportsSection.gemini as Record<string, unknown>) ?? {};
+    expect(geminiSection.commandsDir).toBe('templates/gemini/commands');
+    expect(geminiSection.skillsDir).toBe('templates/gemini/skills');
+  });
+});

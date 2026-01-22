@@ -133,6 +133,63 @@ describe('gemini-config', () => {
 
       expect(result.servers.map((s) => s.name)).toEqual(['aServer', 'mServer', 'zServer']);
     });
+
+    it('accepts object input directly (not just string)', () => {
+      const obj = {
+        mcpServers: {
+          myServer: {
+            command: 'node',
+            args: ['server.js'],
+          },
+        },
+      };
+
+      const result = parseGeminiSettings(obj, '/project', 'test.json');
+
+      expect(result.servers).toHaveLength(1);
+      expect(result.servers[0].id).toBe('gemini:myServer');
+      expect(result.servers[0].definition.command).toBe('node');
+    });
+
+    it('handles empty object input', () => {
+      const result = parseGeminiSettings({}, '/project', 'test.json');
+      expect(result.servers).toEqual([]);
+      expect(result.base).toBeNull();
+    });
+
+    it('preserves base config with object input', () => {
+      const obj = {
+        theme: 'dark',
+        apiKey: 'secret',
+        mcpServers: {
+          server: { command: 'node' },
+        },
+      };
+
+      const result = parseGeminiSettings(obj, '/project', 'test.json');
+
+      expect(result.base).toEqual({
+        theme: 'dark',
+        apiKey: 'secret',
+      });
+      expect(result.servers).toHaveLength(1);
+    });
+
+    it('sanitizes paths in object input', () => {
+      const obj = {
+        mcpServers: {
+          server: {
+            command: '/project/bin/server',
+            args: ['/project/config.json'],
+          },
+        },
+      };
+
+      const result = parseGeminiSettings(obj, '/project', 'test.json');
+
+      expect(result.servers[0].definition.command).toBe('{{ PROJECT_ROOT }}/bin/server');
+      expect(result.servers[0].definition.args).toContain('{{ PROJECT_ROOT }}/config.json');
+    });
   });
 
   describe('renderGeminiSettings', () => {

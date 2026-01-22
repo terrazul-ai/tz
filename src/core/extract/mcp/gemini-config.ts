@@ -31,18 +31,22 @@ export interface GeminiConfigExtraction {
 }
 
 export function parseGeminiSettings(
-  json: string,
+  input: string | Record<string, unknown>,
   projectRootAbs: string,
   origin = '.gemini/settings.json',
 ): GeminiConfigExtraction {
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(json ?? '');
-  } catch {
-    return { servers: [], base: null };
-  }
+  let doc: Record<string, unknown>;
 
-  const doc = parsed && typeof parsed === 'object' ? (parsed as Record<string, unknown>) : {};
+  if (typeof input === 'string') {
+    try {
+      const parsed: unknown = JSON.parse(input ?? '');
+      doc = parsed && typeof parsed === 'object' ? (parsed as Record<string, unknown>) : {};
+    } catch {
+      return { servers: [], base: null };
+    }
+  } else {
+    doc = input ?? {};
+  }
 
   // Extract base config (non-MCP settings)
   const base: GeminiBaseConfig = {};

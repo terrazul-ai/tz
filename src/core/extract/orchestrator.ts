@@ -11,6 +11,7 @@ import {
   renderCodexConfig,
   renderCodexMcpServers,
 } from './mcp/codex-config.js';
+import { parseGeminiSettings } from './mcp/gemini-config.js';
 import { parseProjectMcpServers } from './mcp/project-config.js';
 import {
   resolveProjectRoot,
@@ -102,6 +103,38 @@ async function readJsonMaybe(p: string): Promise<unknown> {
 
 function stableSort<T>(arr: T[], map: (v: T) => string): T[] {
   return [...arr].sort((a, b) => map(a).localeCompare(map(b)));
+}
+
+async function collectMarkdownFiles(
+  dirPath: string,
+  skipped: string[],
+  artifactName: string,
+): Promise<string[]> {
+  const rootLst = await fs.lstat(dirPath).catch(() => null);
+  if (!rootLst || rootLst.isSymbolicLink()) {
+    if (rootLst?.isSymbolicLink()) {
+      skipped.push(`${artifactName} (symlink dir ignored)`);
+    }
+    return [];
+  }
+
+  const stack: string[] = [dirPath];
+  const collected: string[] = [];
+  while (stack.length > 0) {
+    const cur = stack.pop()!;
+    const entries = await fs.readdir(cur);
+    for (const ent of entries) {
+      const abs = path.join(cur, ent);
+      const lst = await fs.lstat(abs);
+      if (lst.isSymbolicLink()) continue;
+      if (lst.isDirectory()) {
+        stack.push(abs);
+      } else if (lst.isFile() && /\.md$/i.test(ent)) {
+        collected.push(abs);
+      }
+    }
+  }
+  return stableSort(collected, (p) => p);
 }
 
 // Defensive join to ensure writes never escape the intended output directory.
@@ -213,63 +246,6 @@ function createClaudeMcpPlans(
   return plans;
 }
 
-function createGeminiMcpPlans(
-  mcpServers: unknown,
-  projectRootAbs: string,
-  origin: string,
-): MCPServerPlan[] {
-  if (!mcpServers || typeof mcpServers !== 'object') return [];
-  const plans: MCPServerPlan[] = [];
-  for (const [name, value] of Object.entries(mcpServers as Record<string, unknown>)) {
-    if (!value || typeof value !== 'object') continue;
-    const record = value as Record<string, unknown>;
-    // Gemini supports multiple transports: stdio (command), sse (url), http (httpUrl)
-    const commandRaw = record.command;
-    const urlRaw = record.url;
-    const httpUrlRaw = record.httpUrl;
-    // Skip if no transport is defined
-    if (
-      (typeof commandRaw !== 'string' || commandRaw.trim() === '') &&
-      (typeof urlRaw !== 'string' || urlRaw.trim() === '') &&
-      (typeof httpUrlRaw !== 'string' || httpUrlRaw.trim() === '')
-    ) {
-      continue;
-    }
-    const argsRaw = Array.isArray(record.args) ? record.args : [];
-    const envRaw = record.env && typeof record.env === 'object' ? record.env : undefined;
-    const sanitizedArgs = argsRaw
-      .filter((arg): arg is string => typeof arg === 'string')
-      .map((arg) => sanitizeText(String(arg), projectRootAbs));
-    const envEntries = envRaw
-      ? Object.entries(envRaw as Record<string, unknown>).filter(
-          (entry): entry is [string, string] => typeof entry[1] === 'string',
-        )
-      : [];
-    const sanitizedEnv = sanitizeEnv(Object.fromEntries(envEntries));
-    const sanitizedCommand =
-      typeof commandRaw === 'string' ? sanitizeText(String(commandRaw), projectRootAbs) : '';
-    const config = structuredClone(record);
-    if (sanitizedCommand) config.command = sanitizedCommand;
-    config.args = sanitizedArgs;
-    if (sanitizedEnv) config.env = sanitizedEnv;
-    else if ('env' in config) delete config.env;
-    plans.push({
-      id: `gemini:${name}`,
-      source: 'gemini',
-      name,
-      origin,
-      definition: {
-        command: sanitizedCommand,
-        args: sanitizedArgs,
-        env: sanitizedEnv ?? {},
-      },
-      config,
-    });
-  }
-  plans.sort((a, b) => a.id.localeCompare(b.id));
-  return plans;
-}
-
 export async function analyzeExtractSources(options: ExtractOptions): Promise<ExtractPlan> {
   const fromAbs = path.resolve(options.from);
   const projectRoot = resolveProjectRoot(fromAbs);
@@ -366,6 +342,26 @@ export async function analyzeExtractSources(options: ExtractOptions): Promise<Ex
       }
       agentFiles = stableSort(collected, (p) => p);
     }
+  }
+
+  // Gemini: commands directory
+  let geminiCommandFiles: string[] = [];
+  if (exists.geminiCommandsDir) {
+    geminiCommandFiles = await collectMarkdownFiles(
+      exists.geminiCommandsDir,
+      plan.skipped,
+      'gemini.commands',
+    );
+  }
+
+  // Gemini: skills directory
+  let geminiSkillFiles: string[] = [];
+  if (exists.geminiSkillsDir) {
+    geminiSkillFiles = await collectMarkdownFiles(
+      exists.geminiSkillsDir,
+      plan.skipped,
+      'gemini.skills',
+    );
   }
 
   if (exists.codexAgents) {
@@ -579,11 +575,60 @@ export async function analyzeExtractSources(options: ExtractOptions): Promise<Ex
           properties: { mcpServers: 'templates/gemini/settings.json.hbs' },
         },
       });
-      // Extract MCP servers from Gemini settings
+      // Extract MCP servers from Gemini settings using parseGeminiSettings
       const settingsObj = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {};
-      if (settingsObj.mcpServers && typeof settingsObj.mcpServers === 'object') {
-        plan.mcpServers.push(...createGeminiMcpPlans(settingsObj.mcpServers, projectRoot, src));
-      }
+      const geminiExtraction = parseGeminiSettings(settingsObj, projectRoot, src);
+      plan.mcpServers.push(...geminiExtraction.servers);
+    }
+  }
+
+  // Gemini: commands directory processing
+  if (geminiCommandFiles.length > 0 && exists.geminiCommandsDir) {
+    plan.detected['gemini.commands'] = geminiCommandFiles;
+    let manifestApplied = false;
+    for (const src of geminiCommandFiles) {
+      const relUnderDir = path.relative(exists.geminiCommandsDir, src);
+      const normalized = relUnderDir.split(path.sep).join('/');
+      const sanitized = sanitizeText(await fs.readFile(src, 'utf8'), projectRoot);
+      addOutput({
+        id: `gemini.commands:templates/gemini/commands/${normalized}.hbs`,
+        artifactId: 'gemini.commands',
+        relativePath: `templates/gemini/commands/${normalized}.hbs`,
+        format: 'text',
+        data: sanitized,
+        manifestPatch: manifestApplied
+          ? undefined
+          : {
+              tool: 'gemini',
+              properties: { commandsDir: 'templates/gemini/commands' },
+            },
+      });
+      manifestApplied = true;
+    }
+  }
+
+  // Gemini: skills directory processing
+  if (geminiSkillFiles.length > 0 && exists.geminiSkillsDir) {
+    plan.detected['gemini.skills'] = geminiSkillFiles;
+    let manifestApplied = false;
+    for (const src of geminiSkillFiles) {
+      const relUnderDir = path.relative(exists.geminiSkillsDir, src);
+      const normalized = relUnderDir.split(path.sep).join('/');
+      const sanitized = sanitizeText(await fs.readFile(src, 'utf8'), projectRoot);
+      addOutput({
+        id: `gemini.skills:templates/gemini/skills/${normalized}.hbs`,
+        artifactId: 'gemini.skills',
+        relativePath: `templates/gemini/skills/${normalized}.hbs`,
+        format: 'text',
+        data: sanitized,
+        manifestPatch: manifestApplied
+          ? undefined
+          : {
+              tool: 'gemini',
+              properties: { skillsDir: 'templates/gemini/skills' },
+            },
+      });
+      manifestApplied = true;
     }
   }
 
