@@ -122,7 +122,10 @@ async function spawnCodexInternal(options: SpawnToolOptions): Promise<number> {
           args.push('-c', `mcp_servers.${name}.args=${JSON.stringify(server.args)}`);
         }
         if (server.env && Object.keys(server.env).length > 0) {
-          args.push('-c', `mcp_servers.${name}.env=${JSON.stringify(server.env)}`);
+          // Use flat key syntax for TOML compatibility (e.g., mcp_servers.name.env.KEY=value)
+          for (const [envKey, envValue] of Object.entries(server.env)) {
+            args.push('-c', `mcp_servers.${name}.env.${envKey}=${envValue}`);
+          }
         }
       }
     }

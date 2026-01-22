@@ -176,7 +176,7 @@ describe('tool-spawner', () => {
         expect(args).not.toContain('--model');
       });
 
-      it('passes MCP config via -c flags', async () => {
+      it('passes MCP config via -c flags with TOML-compatible format', async () => {
         mockSpawn.mockReturnValue(createMockChildProcess());
 
         const tool: ToolSpec = { type: 'codex' };
@@ -185,7 +185,7 @@ describe('tool-spawner', () => {
             'test-server': {
               command: 'npx',
               args: ['-y', '@anthropic-ai/mcp-test'],
-              env: { FOO: 'bar' },
+              env: { FOO: 'bar', BAZ: 'qux' },
             },
           },
         };
@@ -194,9 +194,11 @@ describe('tool-spawner', () => {
 
         const args = mockSpawn.mock.calls[0]?.[1] as string[];
         expect(args).toContain('-c');
-        expect(args.some((arg) => arg.includes('mcp_servers.test-server.command=npx'))).toBe(true);
+        expect(args.includes('mcp_servers.test-server.command=npx')).toBe(true);
         expect(args.some((arg) => arg.includes('mcp_servers.test-server.args='))).toBe(true);
-        expect(args.some((arg) => arg.includes('mcp_servers.test-server.env='))).toBe(true);
+        // Env vars should be passed as flat keys for TOML compatibility
+        expect(args.includes('mcp_servers.test-server.env.FOO=bar')).toBe(true);
+        expect(args.includes('mcp_servers.test-server.env.BAZ=qux')).toBe(true);
       });
 
       it('throws TOOL_NOT_FOUND on ENOENT error', async () => {
