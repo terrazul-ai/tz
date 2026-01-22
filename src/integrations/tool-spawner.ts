@@ -1,6 +1,8 @@
 import { spawn } from 'node:child_process';
 import { promises as fs } from 'node:fs';
 
+import * as TOML from '@iarna/toml';
+
 import { ErrorCode, TerrazulError } from '../core/errors.js';
 
 import type { MCPConfig } from './claude-code.js';
@@ -122,7 +124,11 @@ async function spawnCodexInternal(options: SpawnToolOptions): Promise<number> {
           args.push('-c', `mcp_servers.${name}.args=${JSON.stringify(server.args)}`);
         }
         if (server.env && Object.keys(server.env).length > 0) {
-          args.push('-c', `mcp_servers.${name}.env=${JSON.stringify(server.env)}`);
+          // Use flat key syntax with properly quoted values for TOML compatibility
+          // (e.g., mcp_servers.name.env.KEY="value")
+          for (const [envKey, envValue] of Object.entries(server.env)) {
+            args.push('-c', `mcp_servers.${name}.env.${envKey}=${tomlStringify(envValue)}`);
+          }
         }
       }
     }
@@ -225,6 +231,17 @@ async function spawnGeminiInternal(options: SpawnToolOptions): Promise<number> {
       resolve(code ?? 0);
     });
   });
+}
+
+/**
+ * Serialize a string value to TOML format (properly quoted and escaped).
+ * Uses @iarna/toml for guaranteed correctness with special characters.
+ */
+function tomlStringify(value: string): string {
+  // TOML.stringify wraps the result with "v = <value>\n", extract just the value
+  const serialized = TOML.stringify({ v: value });
+  // Output is "v = <value>\n", extract <value>
+  return serialized.slice(4, -1);
 }
 
 /**
