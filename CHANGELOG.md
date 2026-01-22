@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.21.1](https://github.com/terrazul-ai/tz/compare/v0.21.0...v0.21.1) (2026-01-22)
+
+
+### Bug Fixes
+
+* **integrations:** use flat key syntax for Codex MCP env serialization ([#90](https://github.com/terrazul-ai/tz/issues/90)) ([3455d5a](https://github.com/terrazul-ai/tz/commit/3455d5a8eeca94d7fe49d351dae6754a96799daa))
+
 ## [0.21.0](https://github.com/terrazul-ai/tz/compare/v0.20.1...v0.21.0) (2026-01-21)
 
 
