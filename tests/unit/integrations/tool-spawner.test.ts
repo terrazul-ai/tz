@@ -196,9 +196,44 @@ describe('tool-spawner', () => {
         expect(args).toContain('-c');
         expect(args.includes('mcp_servers.test-server.command=npx')).toBe(true);
         expect(args.some((arg) => arg.includes('mcp_servers.test-server.args='))).toBe(true);
-        // Env vars should be passed as flat keys for TOML compatibility
-        expect(args.includes('mcp_servers.test-server.env.FOO=bar')).toBe(true);
-        expect(args.includes('mcp_servers.test-server.env.BAZ=qux')).toBe(true);
+        // Env vars should be passed as flat keys with properly quoted values for TOML compatibility
+        expect(args.includes('mcp_servers.test-server.env.FOO="bar"')).toBe(true);
+        expect(args.includes('mcp_servers.test-server.env.BAZ="qux"')).toBe(true);
+      });
+
+      it('properly escapes special characters in env values for TOML compatibility', async () => {
+        mockSpawn.mockReturnValue(createMockChildProcess());
+
+        const tool: ToolSpec = { type: 'codex' };
+        const mcpConfig = {
+          mcpServers: {
+            'test-server': {
+              command: 'node',
+              env: {
+                API_KEY: 'sk-abc123',
+                URL: 'https://api.example.com/v1',
+                QUOTED: 'has "quotes"',
+                BACKSLASH: String.raw`has\backslash`,
+              },
+            },
+          },
+        };
+
+        await spawnTool({ tool, cwd: tmpDir, mcpConfig });
+
+        const args = mockSpawn.mock.calls[0]?.[1] as string[];
+        // Verify values are properly TOML-quoted
+        // @iarna/toml uses double quotes for regular strings
+        expect(args.includes('mcp_servers.test-server.env.API_KEY="sk-abc123"')).toBe(true);
+        expect(args.includes('mcp_servers.test-server.env.URL="https://api.example.com/v1"')).toBe(
+          true,
+        );
+        // @iarna/toml uses single quotes for strings containing double quotes
+        expect(args.includes('mcp_servers.test-server.env.QUOTED=\'has "quotes"\'')).toBe(true);
+        // Backslashes are escaped within double quotes
+        expect(
+          args.includes(String.raw`mcp_servers.test-server.env.BACKSLASH="has\\backslash"`),
+        ).toBe(true);
       });
 
       it('throws TOOL_NOT_FOUND on ENOENT error', async () => {
