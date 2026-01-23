@@ -190,6 +190,75 @@ describe('gemini-config', () => {
       expect(result.servers[0].definition.command).toBe('{{ PROJECT_ROOT }}/bin/server');
       expect(result.servers[0].definition.args).toContain('{{ PROJECT_ROOT }}/config.json');
     });
+
+    it('sanitizes embedded paths in args (e.g., --config=/path)', () => {
+      const obj = {
+        mcpServers: {
+          server: {
+            command: 'node',
+            args: ['--config=/project/config.json', '--db=/project/data/db.sqlite'],
+          },
+        },
+      };
+
+      const result = parseGeminiSettings(obj, '/project', 'test.json');
+
+      expect(result.servers[0].definition.args).toEqual([
+        '--config={{ PROJECT_ROOT }}/config.json',
+        '--db={{ PROJECT_ROOT }}/data/db.sqlite',
+      ]);
+    });
+
+    it('drops invalid env entries (non-object env)', () => {
+      const obj = {
+        mcpServers: {
+          server: {
+            command: 'node',
+            env: 'invalid-string-env',
+          },
+        },
+      };
+
+      const result = parseGeminiSettings(obj, '/project', 'test.json');
+
+      // env should be removed from config, not leak through
+      expect(result.servers[0].config?.env).toBeUndefined();
+      expect(result.servers[0].definition.env).toEqual({});
+    });
+
+    it('drops env entries with non-string values', () => {
+      const obj = {
+        mcpServers: {
+          server: {
+            command: 'node',
+            env: { PORT: 3000, DEBUG: true, VALID: 'yes' },
+          },
+        },
+      };
+
+      const result = parseGeminiSettings(obj, '/project', 'test.json');
+
+      // Only string values should be kept (and sanitized to {{ env.X }} format)
+      expect(result.servers[0].definition.env).toEqual({ VALID: '{{ env.VALID }}' });
+      expect(result.servers[0].config?.env).toEqual({ VALID: '{{ env.VALID }}' });
+    });
+
+    it('removes env from config when all entries are invalid', () => {
+      const obj = {
+        mcpServers: {
+          server: {
+            command: 'node',
+            env: { PORT: 3000, DEBUG: true },
+          },
+        },
+      };
+
+      const result = parseGeminiSettings(obj, '/project', 'test.json');
+
+      // env should be completely removed, not left as empty object
+      expect(result.servers[0].config?.env).toBeUndefined();
+      expect(result.servers[0].definition.env).toEqual({});
+    });
   });
 
   describe('renderGeminiSettings', () => {

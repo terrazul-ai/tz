@@ -108,7 +108,12 @@ export function parseGeminiSettings(
     >;
     if (sanitizedCommand) config.command = sanitizedCommand;
     if (sanitizedArgs.length > 0) config.args = sanitizedArgs;
-    if (sanitizedEnv && Object.keys(sanitizedEnv).length > 0) config.env = sanitizedEnv;
+    // Always overwrite env to prevent invalid/unsanitized values from leaking through
+    if (sanitizedEnv && Object.keys(sanitizedEnv).length > 0) {
+      config.env = sanitizedEnv;
+    } else {
+      delete config.env;
+    }
 
     servers.push({
       id: `gemini:${name}`,
