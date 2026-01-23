@@ -231,4 +231,31 @@ promptsDir = "prompts"
     const promptCount = files.filter((f) => f === 'prompts/shared.txt').length;
     expect(promptCount).toBe(1);
   });
+
+  it('includes directories with path traversal that resolve outside templates/', async () => {
+    // Regression test: paths like "templates/../prompts" should be normalized
+    // and recognized as NOT being under templates/
+    root = await mkd('tz-pub-traversal');
+    await write(
+      root,
+      'agents.toml',
+      `
+[package]
+name = "@u/traversal"
+version = "0.1.0"
+
+[exports.claude]
+template = "templates/CLAUDE.md.hbs"
+promptsDir = "templates/../prompts"
+`,
+    );
+    await write(root, 'README.md', '# Test');
+    await write(root, 'templates/CLAUDE.md.hbs', '# Hello');
+    await write(root, 'prompts/analysis.txt', 'Analysis prompt');
+
+    const files = await collectPackageFiles(root);
+    // The path "templates/../prompts" normalizes to "prompts" which is NOT under templates/
+    // So it should be included via the export directory logic
+    expect(files).toContain('prompts/analysis.txt');
+  });
 });

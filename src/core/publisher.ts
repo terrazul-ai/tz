@@ -57,9 +57,11 @@ async function addDirectoryRecursively(
 
 /**
  * Check if a path is already under templates/ directory.
+ * Uses path.normalize to resolve '..' segments before checking.
  */
 function isUnderTemplates(relPath: string): boolean {
-  const normalized = relPath.replaceAll('\\', '/');
+  // Normalize to resolve '..' segments (e.g., 'templates/../prompts' -> 'prompts')
+  const normalized = path.normalize(relPath).replaceAll('\\', '/');
   return normalized === 'templates' || normalized.startsWith('templates/');
 }
 
