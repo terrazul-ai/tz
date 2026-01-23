@@ -1,4 +1,4 @@
-import { rewritePath, sanitizeEnv, sanitizeMcpServers } from '../sanitize.js';
+import { sanitizeEnv, sanitizeMcpServers, sanitizeText } from '../sanitize.js';
 
 import type { MCPServerPlan } from '../types.js';
 
@@ -86,7 +86,7 @@ export function parseGeminiSettings(
 
     const sanitizedArgs = argsRaw
       .filter((arg): arg is string => typeof arg === 'string')
-      .map((arg) => rewritePath(arg, projectRootAbs));
+      .map((arg) => sanitizeText(arg, projectRootAbs));
     const sanitizedEnv = sanitizeEnv(
       envRaw
         ? Object.fromEntries(
@@ -99,7 +99,7 @@ export function parseGeminiSettings(
 
     // Sanitize command/url paths
     const sanitizedCommand =
-      typeof commandRaw === 'string' ? rewritePath(commandRaw, projectRootAbs) : undefined;
+      typeof commandRaw === 'string' ? sanitizeText(commandRaw, projectRootAbs) : undefined;
 
     // Build config preserving all original properties
     const config: Record<string, unknown> = sanitizeMcpServers(record, projectRootAbs) as Record<
