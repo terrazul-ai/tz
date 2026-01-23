@@ -96,6 +96,13 @@ export async function collectPackageFiles(root: string): Promise<string[]> {
           const normalizedDir = dir.replaceAll('\\', '/').replace(/\/+$/, '');
           // Skip if already under templates/ or already processed
           if (!isUnderTemplates(normalizedDir) && !addedDirs.has(normalizedDir)) {
+            // Validate path stays within package root (defense-in-depth)
+            try {
+              resolveWithin(root, normalizedDir);
+            } catch {
+              // Path escapes package root - skip silently (tarball creation would catch it anyway)
+              continue;
+            }
             addedDirs.add(normalizedDir);
             await addDirectoryRecursively(root, normalizedDir, allowed);
           }

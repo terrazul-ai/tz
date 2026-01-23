@@ -258,4 +258,28 @@ promptsDir = "templates/../prompts"
     // So it should be included via the export directory logic
     expect(files).toContain('prompts/analysis.txt');
   });
+
+  it('rejects export directories that escape package root', async () => {
+    root = await mkd('tz-pub-escape');
+    await write(
+      root,
+      'agents.toml',
+      `
+[package]
+name = "@u/escape"
+version = "0.1.0"
+
+[exports.claude]
+template = "templates/CLAUDE.md.hbs"
+promptsDir = "../../../etc"
+`,
+    );
+    await write(root, 'README.md', '# Test');
+    await write(root, 'templates/CLAUDE.md.hbs', '# Hello');
+
+    const files = await collectPackageFiles(root);
+    // Should not include any files from outside the package root
+    expect(files.every((f: string) => !f.includes('etc'))).toBe(true);
+    expect(files).toContain('agents.toml');
+  });
 });
