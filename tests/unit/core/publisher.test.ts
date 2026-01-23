@@ -61,3 +61,174 @@ describe('core/publisher', () => {
     expect(listed).toContain('templates/CLAUDE.md.hbs');
   });
 });
+
+describe('core/publisher - export directories', () => {
+  let root = '';
+
+  afterAll(async () => {
+    if (root) {
+      await fs.rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('includes promptsDir from exports', async () => {
+    root = await mkd('tz-pub-prompts');
+    await write(
+      root,
+      'agents.toml',
+      `
+[package]
+name = "@u/web-qa"
+version = "0.1.0"
+
+[exports.claude]
+template = "templates/CLAUDE.md.hbs"
+promptsDir = "prompts"
+`,
+    );
+    await write(root, 'README.md', '# Web QA');
+    await write(root, 'templates/CLAUDE.md.hbs', '# Hello');
+    await write(root, 'prompts/analyze-project.txt', 'Analyze the project');
+    await write(root, 'prompts/nested/deep.txt', 'Deep prompt');
+
+    const files = await collectPackageFiles(root);
+    expect(files).toContain('agents.toml');
+    expect(files).toContain('prompts/analyze-project.txt');
+    expect(files).toContain('prompts/nested/deep.txt');
+  });
+
+  it('includes multiple export directories from multiple tools', async () => {
+    root = await mkd('tz-pub-multi');
+    await write(
+      root,
+      'agents.toml',
+      `
+[package]
+name = "@u/multi"
+version = "0.1.0"
+
+[exports.claude]
+template = "templates/CLAUDE.md.hbs"
+promptsDir = "prompts"
+commandsDir = "commands"
+
+[exports.codex]
+template = "templates/CODEX.md.hbs"
+skillsDir = "skills"
+`,
+    );
+    await write(root, 'README.md', '# Multi');
+    await write(root, 'templates/CLAUDE.md.hbs', '# Claude');
+    await write(root, 'templates/CODEX.md.hbs', '# Codex');
+    await write(root, 'prompts/prompt1.txt', 'Prompt 1');
+    await write(root, 'commands/cmd1.md', '# Command 1');
+    await write(root, 'skills/skill1.md', '# Skill 1');
+
+    const files = await collectPackageFiles(root);
+    expect(files).toContain('prompts/prompt1.txt');
+    expect(files).toContain('commands/cmd1.md');
+    expect(files).toContain('skills/skill1.md');
+  });
+
+  it('does not duplicate files when dir is under templates/', async () => {
+    root = await mkd('tz-pub-tpl-prompts');
+    await write(
+      root,
+      'agents.toml',
+      `
+[package]
+name = "@u/tpl-prompts"
+version = "0.1.0"
+
+[exports.claude]
+template = "templates/CLAUDE.md.hbs"
+promptsDir = "templates/prompts"
+`,
+    );
+    await write(root, 'README.md', '# Test');
+    await write(root, 'templates/CLAUDE.md.hbs', '# Hello');
+    await write(root, 'templates/prompts/p1.txt', 'Prompt 1');
+
+    const files = await collectPackageFiles(root);
+    // Should only appear once even though templates/** is already included
+    const promptCount = files.filter((f) => f === 'templates/prompts/p1.txt').length;
+    expect(promptCount).toBe(1);
+  });
+
+  it('handles missing export directories gracefully', async () => {
+    root = await mkd('tz-pub-missing');
+    await write(
+      root,
+      'agents.toml',
+      `
+[package]
+name = "@u/missing"
+version = "0.1.0"
+
+[exports.claude]
+template = "templates/CLAUDE.md.hbs"
+promptsDir = "nonexistent"
+`,
+    );
+    await write(root, 'README.md', '# Test');
+    await write(root, 'templates/CLAUDE.md.hbs', '# Hello');
+
+    // Should not throw
+    const files = await collectPackageFiles(root);
+    expect(files).toContain('agents.toml');
+    expect(files).not.toContain('nonexistent');
+  });
+
+  it('includes subagentsDir from exports', async () => {
+    root = await mkd('tz-pub-subagents');
+    await write(
+      root,
+      'agents.toml',
+      `
+[package]
+name = "@u/subagents"
+version = "0.1.0"
+
+[exports.claude]
+template = "templates/CLAUDE.md.hbs"
+subagentsDir = "agents"
+`,
+    );
+    await write(root, 'README.md', '# Test');
+    await write(root, 'templates/CLAUDE.md.hbs', '# Hello');
+    await write(root, 'agents/helper.md', '# Helper agent');
+
+    const files = await collectPackageFiles(root);
+    expect(files).toContain('agents/helper.md');
+  });
+
+  it('deduplicates directories referenced by multiple tools', async () => {
+    root = await mkd('tz-pub-dedup');
+    await write(
+      root,
+      'agents.toml',
+      `
+[package]
+name = "@u/dedup"
+version = "0.1.0"
+
+[exports.claude]
+template = "templates/CLAUDE.md.hbs"
+promptsDir = "prompts"
+
+[exports.codex]
+template = "templates/CODEX.md.hbs"
+promptsDir = "prompts"
+`,
+    );
+    await write(root, 'README.md', '# Test');
+    await write(root, 'templates/CLAUDE.md.hbs', '# Claude');
+    await write(root, 'templates/CODEX.md.hbs', '# Codex');
+    await write(root, 'prompts/shared.txt', 'Shared prompt');
+
+    const files = await collectPackageFiles(root);
+    // Should only appear once even though both tools reference it
+    const promptCount = files.filter((f) => f === 'prompts/shared.txt').length;
+    expect(promptCount).toBe(1);
+  });
+});
