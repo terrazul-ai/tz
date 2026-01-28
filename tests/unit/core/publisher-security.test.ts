@@ -67,6 +67,48 @@ describe('core/publisher security', () => {
     }
   });
 
+  it('handles symlink directory cycles without infinite loop', async () => {
+    // Create a symlink that points to its own parent (templates/loop -> templates)
+    const loopLink = path.join(root, 'templates', 'loop');
+    let symlinkCreated = false;
+    try {
+      await fs.symlink(path.join(root, 'templates'), loopLink);
+      symlinkCreated = true;
+    } catch {
+      // Windows or restricted environments may fail; skip assertion
+    }
+    if (symlinkCreated) {
+      // Should complete without hanging — cycle is detected and skipped
+      const files = await collectPackageFiles(root);
+      expect(files).toContain('templates/CLAUDE.md.hbs');
+      // The cyclic symlink should NOT produce nested paths like templates/loop/CLAUDE.md.hbs
+      expect(files).not.toContain('templates/loop/CLAUDE.md.hbs');
+      await fs.unlink(loopLink);
+    }
+  });
+
+  it('handles symlink to package root without infinite loop', async () => {
+    // Create a symlink that points to the package root itself
+    const rootLink = path.join(root, 'templates', 'rootlink');
+    let symlinkCreated = false;
+    try {
+      await fs.symlink(root, rootLink);
+      symlinkCreated = true;
+    } catch {
+      // Windows or restricted environments may fail; skip assertion
+    }
+    if (symlinkCreated) {
+      // Should complete without hanging — visited-realpath guard breaks the cycle
+      const files = await collectPackageFiles(root);
+      expect(files).toContain('templates/CLAUDE.md.hbs');
+      // The root symlink may expose non-template files (agents.toml, README.md) once,
+      // but must NOT recurse infinitely into templates/rootlink/templates/rootlink/...
+      const deeplyNested = files.filter((f: string) => f.includes('rootlink/templates/rootlink'));
+      expect(deeplyNested).toHaveLength(0);
+      await fs.unlink(rootLink);
+    }
+  });
+
   it('rejects path traversal in tarball input', async () => {
     await expect(createTarball(root, ['templates/../../evil.txt'])).rejects.toThrow(TerrazulError);
     await expect(createTarball(root, ['templates/../../evil.txt'])).rejects.toMatchObject({

@@ -336,6 +336,7 @@ interface RenderingOptions {
   resolvedTool: 'claude' | 'codex' | 'gemini';
   toolSafeMode: boolean;
   force: boolean;
+  noCache: boolean;
   localPackagePaths?: Map<string, string>;
 }
 
@@ -345,7 +346,7 @@ interface RenderingOptions {
  * consistent tool selection between rendering and spawning.
  */
 function prepareRenderingOptions(
-  opts: { toolSafeMode?: boolean; force?: boolean },
+  opts: { toolSafeMode?: boolean; force?: boolean; noCache?: boolean },
   resolved: ResolvedPackage | null,
   resolvedToolType: 'claude' | 'codex' | 'gemini',
 ): RenderingOptions {
@@ -364,6 +365,7 @@ function prepareRenderingOptions(
     resolvedTool: resolvedToolType,
     toolSafeMode,
     force,
+    noCache: opts.noCache ?? false,
     localPackagePaths,
   };
 }
@@ -387,6 +389,7 @@ async function executeRendering(
     const result = await planAndRender(projectRoot, agentModulesRoot, {
       dryRun: false,
       force: renderOpts.force,
+      noCache: renderOpts.noCache,
       packageName,
       profileName,
       tool: renderOpts.resolvedTool,
@@ -853,6 +856,7 @@ export function registerRunCommand(
     .option('--tool <tool>', 'Use a specific answer tool (claude or codex)')
     .option('--no-tool-safe-mode', 'Disable safe mode for tool execution')
     .option('--force', 'Force re-rendering even if files already exist')
+    .option('--no-cache', 'Skip snippet cache (re-execute all askAgent/askUser prompts)')
     .option('-p, --prompt <prompt>', 'Run in headless mode with the given prompt')
     .action(
       async (
@@ -862,6 +866,7 @@ export function registerRunCommand(
           tool?: string;
           toolSafeMode?: boolean;
           force?: boolean;
+          cache?: boolean;
           prompt?: string;
         },
       ) => {
@@ -900,7 +905,11 @@ export function registerRunCommand(
           });
 
           // Prepare rendering options using the resolved tool
-          const renderOpts = prepareRenderingOptions(opts, resolved, toolSpec.type);
+          const renderOpts = prepareRenderingOptions(
+            { ...opts, noCache: opts.cache === false },
+            resolved,
+            toolSpec.type,
+          );
 
           // Execute rendering with progress tracking
           const result = await executeRendering(
