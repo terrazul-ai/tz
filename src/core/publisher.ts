@@ -9,8 +9,6 @@ import { resolveWithin } from '../utils/path.js';
 
 import type { Stats } from 'node:fs';
 
-// removed: use resolveWithin instead
-
 async function safeStat(p: string): Promise<Stats | null> {
   try {
     return await fs.lstat(p);
@@ -57,6 +55,11 @@ async function addDirectoryRecursively(
   const stat = await safeStat(dirAbs);
   if (!stat || !stat.isDirectory()) return;
 
+  // Track visited real paths to prevent symlink directory cycles
+  const visited = new Set<string>();
+  const initialReal = realpathSync(dirAbs);
+  visited.add(initialReal);
+
   const stack: string[] = [dirRel];
   while (stack.length > 0) {
     const rel = stack.pop()!;
@@ -69,9 +72,18 @@ async function addDirectoryRecursively(
       if (lst.isSymbolicLink()) {
         const targetStat = resolveInternalSymlink(absChild, root);
         if (!targetStat) continue;
-        if (targetStat.isDirectory()) stack.push(relChild);
-        else if (targetStat.isFile()) allowed.push(relChild);
+        if (targetStat.isDirectory()) {
+          const realDir = realpathSync(absChild);
+          if (visited.has(realDir)) continue; // cycle detected — skip
+          visited.add(realDir);
+          stack.push(relChild);
+        } else if (targetStat.isFile()) {
+          allowed.push(relChild);
+        }
       } else if (lst.isDirectory()) {
+        const realDir = realpathSync(absChild);
+        if (visited.has(realDir)) continue;
+        visited.add(realDir);
         stack.push(relChild);
       } else if (lst.isFile()) {
         allowed.push(relChild);
