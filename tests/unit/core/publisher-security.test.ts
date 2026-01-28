@@ -32,7 +32,7 @@ describe('core/publisher security', () => {
     await fs.rm(root, { recursive: true, force: true });
   });
 
-  it('skips symlinks under templates if any', async () => {
+  it('includes internal symlinks that point within package root', async () => {
     const linkPath = path.join(root, 'templates', 'link.hbs');
     let symlinkCreated = false;
     try {
@@ -43,7 +43,27 @@ describe('core/publisher security', () => {
     }
     const files = await collectPackageFiles(root);
     if (symlinkCreated) {
-      expect(files).not.toContain('templates/link.hbs');
+      expect(files).toContain('templates/link.hbs');
+      await fs.unlink(linkPath);
+    }
+  });
+
+  it('skips symlinks that point outside package root', async () => {
+    const externalTarget = path.join(os.tmpdir(), 'tz-pub-sec-external-target.txt');
+    const linkPath = path.join(root, 'templates', 'external-link.hbs');
+    let symlinkCreated = false;
+    try {
+      await fs.writeFile(externalTarget, '# external', 'utf8');
+      await fs.symlink(externalTarget, linkPath);
+      symlinkCreated = true;
+    } catch {
+      // Windows or restricted environments may fail; skip assertion
+    }
+    const files = await collectPackageFiles(root);
+    if (symlinkCreated) {
+      expect(files).not.toContain('templates/external-link.hbs');
+      await fs.unlink(linkPath);
+      await fs.unlink(externalTarget);
     }
   });
 
