@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.21.2](https://github.com/terrazul-ai/tz/compare/v0.21.1...v0.21.2) (2026-01-28)
+
+
+### Bug Fixes
+
+* **core:** include export directories in published packages ([#93](https://github.com/terrazul-ai/tz/issues/93)) ([af3d69b](https://github.com/terrazul-ai/tz/commit/af3d69b644df81ed1bd60b26e80ea5b832cadc98))
+* **extract:** Deduplicate MCP parsing and add Gemini commands/skills extraction ([#92](https://github.com/terrazul-ai/tz/issues/92)) ([b9f343a](https://github.com/terrazul-ai/tz/commit/b9f343a47aaf103ac5119995e37c486c0f34e421))
+
 ## [0.21.1](https://github.com/terrazul-ai/tz/compare/v0.21.0...v0.21.1) (2026-01-22)
 
 
