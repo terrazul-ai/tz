@@ -40,6 +40,53 @@ version = "1.0.3"
   value = '"https://github.com/terrazul-ai/tz"'
   timestamp = "2025-11-26T15:28:20.941Z"
 
+[packages."@terrazul/tdd-engineer"]
+version = "1.1.1"
+
+  [[packages."@terrazul/tdd-engineer".snippets]]
+  id = "snippet_a4222f1c"
+  type = "askUser"
+  prompt_excerpt = "GitHub Personal Access Token (leave empty to skip GitHub integration)"
+  value = '""'
+  timestamp = "2026-01-28T04:31:26.798Z"
+
+  [[packages."@terrazul/tdd-engineer".snippets]]
+  id = "snippet_a712bf4f"
+  type = "askAgent"
+  prompt_excerpt = "You are a comprehensive technical analyst examining a software project to provide developers with..."
+  value = "{\"type\":\"result\",\"subtype\":\"error_during_execution\",\"duration_ms\":120657,\"duration_api_ms\":127217,\"is_error\":false,\"num_turns\":4,\"session_id\":\"11b76c6a-d784-4679-b72a-3216fecc12b9\",\"total_cost_usd\":0.5793047499999999,\"usage\":{\"input_tokens\":6,\"cache_creation_input_tokens\":48752,\"cache_read_input_tokens\":136667,\"output_tokens\":2309,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":48752,\"ephemeral_5m_input_tokens\":0}},\"modelUsage\":{\"claude-haiku-4-5-20251001\":{\"inputTokens\":15881,\"outputTokens\":6626,\"cacheReadInputTokens\":213190,\"cacheCreationInputTokens\":62549,\"webSearchRequests\":0,\"costUSD\":0.14851625,\"contextWindow\":200000,\"maxOutputTokens\":64000},\"claude-opus-4-5-20251101\":{\"inputTokens\":6,\"outputTokens\":2309,\"cacheReadInputTokens\":136667,\"cacheCreationInputTokens\":48752,\"webSearchRequests\":0,\"costUSD\":0.4307885000000001,\"contextWindow\":200000,\"maxOutputTokens\":64000}},\"permission_denials\":[{\"tool_name\":\"ExitPlanMode\",\"tool_use_id\":\"toolu_0192VhmUYCRtWcnrG4khsuec\",\"tool_input\":{\"plan\":\"# Project Analysis: Terrazul CLI (tz-cli)\\n\\n## Task\\nComprehensive technical analysis of the tz-cli project returning a flat JSON object with technology stack, build system, debugging tools, and project structure information.\\n\\n## Analysis Complete\\n\\nThe analysis has been performed and the JSON response provided above in the conversation. This is a read-only research task - no code changes required.\\n\\n## Key Findings\\n\\n- **Stack**: TypeScript + React/Ink CLI tool, pnpm, esbuild, Vitest\\n- **Build**: ESM bundle (dist/tz.mjs) + SEA binary distribution\\n- **Tests**: 127 test files across unit/integration/e2e/ui\\n- **No debugger config**: Uses node --inspect manually\\n- **No databases**: File-based TOML storage\\n- **CI**: GitHub Actions matrix (Linux/macOS/Windows × Node 18+)\\n\"}}],\"uuid\":\"4d4d7008-f362-489a-90c3-c73b8bf1347a\",\"errors\":[\"TypeError: Cannot read properties of undefined (reading 'safeParse')\\n    at TQ6 (file:///Users/leonardourbina/n/lib/node_modules/@anthropic-ai/claude-code/cli.js:5228:25188)\\n    at tr2 (file:///Users/leonardourbina/n/lib/node_modules/@anthropic-ai/claude-code/cli.js:5229:1314)\\n    at Yv (file:///Users/leonardourbina/n/lib/node_modules/@anthropic-ai/claude-code/cli.js:5229:1754)\\n    at oq (file:///Users/leonardourbina/n/lib/node_modules/@anthropic-ai/claude-code/cli.js:5229:1683)\\n    at Object.Qb8 [as isPlatformInEnabledList] (file:///Users/leonardourbina/n/lib/node_modules/@anthropic-ai/claude-code/cli.js:244:2532)\\n    at file:///Users/leonardourbina/n/lib/node_modules/@anthropic-ai/claude-code/cli.js:4744:21550\\n    at file:///Users/leonardourbina/n/lib/node_modules/@anthropic-ai/claude-code/cli.js:8:848\\n    at file:///Users/leonardourbina/n/lib/node_modules/@anthropic-ai/claude-code/cli.js:4881:6409\\n    at file:///Users/leonardourbina/n/lib/node_modules/@anthropic-ai/claude-code/cli.js:8:848\\n    at file:///Users/leonardourbina/n/lib/node_modules/@anthropic-ai/claude-code/cli.js:5148:913\",\"TypeError: Cannot read properties of undefined (reading 'safeParse')\\n    at TQ6 (file:///Users/leonardourbina/n/lib/node_modules/@anthropic-ai/claude-code/cli.js:5228:25188)\\n    at tr2 (file:///Users/leonardourbina/n/lib/node_modules/@anthropic-ai/claude-code/cli.js:5229:1314)\\n    at Yv (file:///Users/leonardourbina/n/lib/node_modules/@anthropic-ai/claude-code/cli.js:5229:1754)\\n    at oq (file:///Users/leonardourbina/n/lib/node_modules/@anthropic-ai/claude-code/cli.js:5229:1683)\\n    at Object.Qb8 [as isPlatformInEnabledList] (file:///Users/leonardourbina/n/lib/node_modules/@anthropic-ai/claude-code/cli.js:244:2532)\\n    at file:///Users/leonardourbina/n/lib/node_modules/@anthropic-ai/claude-code/cli.js:4744:21550\\n    at file:///Users/leonardourbina/n/lib/node_modules/@anthropic-ai/claude-code/cli.js:8:848\\n    at file:///Users/leonardourbina/n/lib/node_modules/@anthropic-ai/claude-code/cli.js:4881:6409\\n    at file:///Users/leonardourbina/n/lib/node_modules/@anthropic-ai/claude-code/cli.js:8:848\\n    at file:///Users/leonardourbina/n/lib/node_modules/@anthropic-ai/claude-code/cli.js:5148:913\",\"Error: ENOENT: no such file or directory, scandir '/Library/Application Support/ClaudeCode/.claude/skills'\\n    at Module.readdirSync (node:fs:1583:26)\\n    at file:///Users/leonardourbina/n/lib/node_modules/@anthropic-ai/claude-code/cli.js:9:1909\\n    at hX (file:///Users/leonardourbina/n/lib/node_modules/@anthropic-ai/claude-code/cli.js:8:35183)\\n    at Object.readdirSync (file:///Users/leonardourbina/n/lib/node_modules/@anthropic-ai/claude-code/cli.js:9:1879)\\n    at sZ1 (file:///Users/leonardourbina/n/lib/node_modules/@anthropic-ai/claude-code/cli.js:1827:369)\\n    at file:///Users/leonardourbina/n/lib/node_modules/@anthropic-ai/claude-code/cli.js:1827:4509\\n    at q (file:///Users/leonardourbina/n/lib/node_modules/@anthropic-ai/claude-code/cli.js:8:6814)\\n    at Un2 (file:///Users/leonardourbina/n/lib/node_modules/@anthropic-ai/claude-code/cli.js:4881:4362)\\n    at file:///Users/leonardourbina/n/lib/node_modules/@anthropic-ai/claude-code/cli.js:4881:6995\\n    at q (file:///Users/leonardourbina/n/lib/node_modules/@anthropic-ai/claude-code/cli.js:8:6814)\",\"Error: ENOENT: no such file or directory, scandir '/Users/leonardourbina/.claude/skills'\\n    at Module.readdirSync (node:fs:1583:26)\\n    at file:///Users/leonardourbina/n/lib/node_modules/@anthropic-ai/claude-code/cli.js:9:1909\\n    at hX (file:///Users/leonardourbina/n/lib/node_modules/@anthropic-ai/claude-code/cli.js:8:35183)\\n    at Object.readdirSync (file:///Users/leonardourbina/n/lib/node_modules/@anthropic-ai/claude-code/cli.js:9:1879)\\n    at sZ1 (file:///Users/leonardourbina/n/lib/node_modules/@anthropic-ai/claude-code/cli.js:1827:369)\\n    at file:///Users/leonardourbina/n/lib/node_modules/@anthropic-ai/claude-code/cli.js:1827:4552\\n    at q (file:///Users/leonardourbina/n/lib/node_modules/@anthropic-ai/claude-code/cli.js:8:6814)\\n    at Un2 (file:///Users/leonardourbina/n/lib/node_modules/@anthropic-ai/claude-code/cli.js:4881:4362)\\n    at file:///Users/leonardourbina/n/lib/node_modules/@anthropic-ai/claude-code/cli.js:4881:6995\\n    at q (file:///Users/leonardourbina/n/lib/node_modules/@anthropic-ai/claude-code/cli.js:8:6814)\"]}"
+  timestamp = "2026-01-28T04:31:16.568Z"
+  tool = "claude"
+
+  [[packages."@terrazul/tdd-engineer".snippets]]
+  id = "snippet_b6184c96"
+  type = "askUser"
+  prompt_excerpt = "What should be the minimum test coverage % to aim for?"
+  value = '"80"'
+  timestamp = "2026-01-28T04:29:10.208Z"
+
+  [[packages."@terrazul/tdd-engineer".snippets]]
+  id = "snippet_b9abefcb"
+  type = "askUser"
+  prompt_excerpt = "What is the name of this project?"
+  value = "tz"
+  timestamp = "2026-01-28T04:45:10.108Z"
+
+  [[packages."@terrazul/tdd-engineer".snippets]]
+  id = "snippet_e88ad4cb"
+  type = "askAgent"
+  prompt_excerpt = "List all files under the 'memories/' directory by '@'-mentioning each one. If the directory doesn..."
+  value = '"\n\nNo memory files found."'
+  timestamp = "2026-01-28T04:31:24.795Z"
+  tool = "claude"
+
+  [[packages."@terrazul/tdd-engineer".snippets]]
+  id = "snippet_efbe203c"
+  type = "askUser"
+  prompt_excerpt = "Where is the project code hosted? (GitHub/GitLab URL)"
+  value = '"https://github.com/terrazul-ai/tz"'
+  timestamp = "2026-01-28T04:29:09.078Z"
+
 [metadata]
-generated_at = "2025-11-26T15:30:37.511Z"
-cli_version = "0.18.0"
+generated_at = "2026-01-28T04:45:10.108Z"
+cli_version = "0.21.1"
