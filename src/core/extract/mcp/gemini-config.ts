@@ -1,4 +1,4 @@
-import { rewritePath, sanitizeEnv, sanitizeMcpServers } from '../sanitize.js';
+import { sanitizeEnv, sanitizeMcpServers, sanitizeText } from '../sanitize.js';
 
 import type { MCPServerPlan } from '../types.js';
 
@@ -31,18 +31,22 @@ export interface GeminiConfigExtraction {
 }
 
 export function parseGeminiSettings(
-  json: string,
+  input: string | Record<string, unknown>,
   projectRootAbs: string,
   origin = '.gemini/settings.json',
 ): GeminiConfigExtraction {
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(json ?? '');
-  } catch {
-    return { servers: [], base: null };
-  }
+  let doc: Record<string, unknown>;
 
-  const doc = parsed && typeof parsed === 'object' ? (parsed as Record<string, unknown>) : {};
+  if (typeof input === 'string') {
+    try {
+      const parsed: unknown = JSON.parse(input ?? '');
+      doc = parsed && typeof parsed === 'object' ? (parsed as Record<string, unknown>) : {};
+    } catch {
+      return { servers: [], base: null };
+    }
+  } else {
+    doc = input ?? {};
+  }
 
   // Extract base config (non-MCP settings)
   const base: GeminiBaseConfig = {};
@@ -82,7 +86,7 @@ export function parseGeminiSettings(
 
     const sanitizedArgs = argsRaw
       .filter((arg): arg is string => typeof arg === 'string')
-      .map((arg) => rewritePath(arg, projectRootAbs));
+      .map((arg) => sanitizeText(arg, projectRootAbs));
     const sanitizedEnv = sanitizeEnv(
       envRaw
         ? Object.fromEntries(
@@ -95,7 +99,7 @@ export function parseGeminiSettings(
 
     // Sanitize command/url paths
     const sanitizedCommand =
-      typeof commandRaw === 'string' ? rewritePath(commandRaw, projectRootAbs) : undefined;
+      typeof commandRaw === 'string' ? sanitizeText(commandRaw, projectRootAbs) : undefined;
 
     // Build config preserving all original properties
     const config: Record<string, unknown> = sanitizeMcpServers(record, projectRootAbs) as Record<
@@ -104,7 +108,12 @@ export function parseGeminiSettings(
     >;
     if (sanitizedCommand) config.command = sanitizedCommand;
     if (sanitizedArgs.length > 0) config.args = sanitizedArgs;
-    if (sanitizedEnv && Object.keys(sanitizedEnv).length > 0) config.env = sanitizedEnv;
+    // Always overwrite env to prevent invalid/unsanitized values from leaking through
+    if (sanitizedEnv && Object.keys(sanitizedEnv).length > 0) {
+      config.env = sanitizedEnv;
+    } else {
+      delete config.env;
+    }
 
     servers.push({
       id: `gemini:${name}`,
