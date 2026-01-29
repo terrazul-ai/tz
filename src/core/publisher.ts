@@ -53,7 +53,16 @@ async function addDirectoryRecursively(
 ): Promise<void> {
   const dirAbs = path.join(root, dirRel);
   const stat = await safeStat(dirAbs);
-  if (!stat || !stat.isDirectory()) return;
+  if (!stat) return;
+
+  // Handle the case where the start directory itself is a symlink
+  if (stat.isSymbolicLink()) {
+    const targetStat = resolveInternalSymlink(dirAbs, root);
+    if (!targetStat || !targetStat.isDirectory()) return;
+    // Symlink points to a valid internal directory, continue with traversal
+  } else if (!stat.isDirectory()) {
+    return;
+  }
 
   // Track visited real paths to prevent symlink directory cycles
   const visited = new Set<string>();

@@ -115,4 +115,53 @@ describe('core/publisher security', () => {
       code: ErrorCode.INVALID_PACKAGE,
     });
   });
+
+  it('includes files when the start directory is a symlink to an internal dir', async () => {
+    // Create a real directory with content
+    const realDir = path.join(root, 'real-prompts');
+    await fs.mkdir(realDir, { recursive: true });
+    await fs.writeFile(path.join(realDir, 'prompt.txt'), 'some prompt content', 'utf8');
+
+    // Create a symlink to the real directory
+    const symlinkDir = path.join(root, 'prompts');
+    let symlinkCreated = false;
+    try {
+      await fs.symlink(realDir, symlinkDir);
+      symlinkCreated = true;
+    } catch {
+      // Windows or restricted environments may fail; skip assertion
+    }
+
+    if (symlinkCreated) {
+      // Update manifest to reference the symlinked directory
+      await write(
+        root,
+        'agents.toml',
+        `
+[package]
+name = "@sec/demo"
+version = "0.1.0"
+
+[exports.claude]
+template = "templates/CLAUDE.md.hbs"
+promptsDir = "prompts"
+`,
+      );
+
+      const files = await collectPackageFiles(root);
+      // The symlinked directory should be traversed and its contents included
+      expect(files).toContain('prompts/prompt.txt');
+
+      // Cleanup
+      await fs.unlink(symlinkDir);
+      await fs.rm(realDir, { recursive: true });
+
+      // Restore original manifest
+      await write(
+        root,
+        'agents.toml',
+        `\n[package]\nname = "@sec/demo"\nversion = "0.1.0"\n\n[exports.claude]\ntemplate = "templates/CLAUDE.md.hbs"\n`,
+      );
+    }
+  });
 });
