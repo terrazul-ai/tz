@@ -8,6 +8,7 @@
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
+      "bun": "./dist/index.js",
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
       "default": "./dist/index.js"
@@ -18,10 +19,12 @@
       "default": "./dist/adapters/node.js"
     },
     "./adapters/bun": {
+      "bun": "./dist/adapters/bun.js",
       "types": "./dist/adapters/bun.d.ts",
       "import": "./dist/adapters/bun.js",
       "default": "./dist/adapters/bun.js"
-    }
+    },
+    "./dist/*": "./dist/*"
   },
   "files": [
     "dist",
