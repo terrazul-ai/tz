@@ -27,6 +27,29 @@ interface CacheEntry {
 
 type CacheKey = string;
 
+interface SafeJsonParseResult<T> {
+  success: true;
+  value: T;
+}
+
+interface SafeJsonParseFailure {
+  success: false;
+}
+
+type SafeJsonParseOutcome<T> = SafeJsonParseResult<T> | SafeJsonParseFailure;
+
+/**
+ * Safely parse JSON from cache, returning a discriminated union.
+ * Handles corrupted cache entries gracefully (e.g., `value = "tz"` instead of `value = '"tz"'`).
+ */
+function safeJsonParse<T = unknown>(value: string): SafeJsonParseOutcome<T> {
+  try {
+    return { success: true, value: JSON.parse(value) as T };
+  } catch {
+    return { success: false };
+  }
+}
+
 const DEFAULT_CONTEXT_EXTRACTION_SYSTEM_PROMPT =
   'You are a context extraction agent. Your job is to understand, synthesize and extract context from existing projects. Your responses should only include what is asked, and should not include any dialog such as "I\'m now ready to..", "Looking at", etc. Instead, you should ONLY respond with the answers to the questions asked based on your research';
 
@@ -98,12 +121,20 @@ async function runAskUser(
       cacheKey,
     );
     if (cached) {
-      if (options.verbose) {
-        console.log(`Using cached value for askUser snippet ${snippet.id}`);
+      const parsed = safeJsonParse(cached.value);
+      if (parsed.success) {
+        if (options.verbose) {
+          console.log(`Using cached value for askUser snippet ${snippet.id}`);
+        }
+        options.report?.({ type: 'askUser:end', snippet, answer: parsed.value as string });
+        return { value: parsed.value };
       }
-      const value = JSON.parse(cached.value);
-      options.report?.({ type: 'askUser:end', snippet, answer: value as string });
-      return { value };
+      // Invalid JSON in cache - treat as cache miss and continue to re-prompt
+      if (options.verbose) {
+        console.warn(
+          `Invalid JSON in askUser cache for snippet ${snippet.id}, treating as cache miss`,
+        );
+      }
     }
   }
 
@@ -160,13 +191,26 @@ async function runAskAgent(
       persistentCacheKey,
     );
     if (persistentCached) {
-      if (options.verbose) {
-        console.log(`Using cached value for askAgent snippet ${snippet.id}`);
+      const parsed = safeJsonParse(persistentCached.value);
+      if (parsed.success) {
+        if (options.verbose) {
+          console.log(`Using cached value for askAgent snippet ${snippet.id}`);
+        }
+        const basePrompt = await resolvePrompt(snippet, options.packageDir, promptCache);
+        options.report?.({
+          type: 'askAgent:end',
+          snippet,
+          prompt: basePrompt,
+          value: parsed.value,
+        });
+        return { value: parsed.value };
       }
-      const value = JSON.parse(persistentCached.value);
-      const basePrompt = await resolvePrompt(snippet, options.packageDir, promptCache);
-      options.report?.({ type: 'askAgent:end', snippet, prompt: basePrompt, value });
-      return { value };
+      // Invalid JSON in cache - treat as cache miss and continue to re-execute
+      if (options.verbose) {
+        console.warn(
+          `Invalid JSON in askAgent cache for snippet ${snippet.id}, treating as cache miss`,
+        );
+      }
     }
   }
 
