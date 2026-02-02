@@ -569,4 +569,151 @@ describe('snippet executor', () => {
       expect(context.snippets.snippet_1.value).toBe('User input');
     });
   });
+
+  describe('invalid JSON cache handling', () => {
+    it('treats invalid JSON in askUser persistent cache as cache miss and re-prompts', async () => {
+      const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+      // Cache returns an invalid JSON value (e.g., "tz" instead of '"tz"')
+      const invalidCachedSnippet: CachedSnippet = {
+        id: 'snippet-cache-id',
+        type: 'askUser',
+        promptExcerpt: 'Name?',
+        value: 'tz', // Invalid JSON - bare string without quotes
+        timestamp: new Date().toISOString(),
+      };
+      const setSnippetMock = vi.fn(async () => {});
+      const cacheManager: SnippetCacheManager = {
+        getSnippet: vi.fn(() => invalidCachedSnippet),
+        setSnippet: setSnippetMock,
+      };
+
+      // User provides new input when re-prompted
+      promptMock.mockResolvedValueOnce({ value: 'NewAnswer' });
+
+      try {
+        const snippets = parseSnippets("{{ askUser('Name?') }}");
+        const context = await executeSnippets(
+          snippets,
+          makeOptions({
+            noCache: false,
+            cacheManager,
+            packageName: 'pkg',
+            packageVersion: '1.0.0',
+            verbose: true,
+          }),
+        );
+
+        // Should have re-prompted the user
+        expect(promptMock).toHaveBeenCalledTimes(1);
+        // Should have the new value
+        expect(context.snippets.snippet_0.value).toBe('NewAnswer');
+        // Should have logged a warning about invalid cache
+        expect(warnSpy).toHaveBeenCalledWith(
+          expect.stringContaining('Invalid JSON in askUser cache'),
+        );
+        // Should have saved the new value to cache
+        expect(setSnippetMock).toHaveBeenCalledTimes(1);
+      } finally {
+        logSpy.mockRestore();
+        warnSpy.mockRestore();
+      }
+    });
+
+    it('treats invalid JSON in askAgent persistent cache as cache miss and re-executes', async () => {
+      const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+      // Cache returns an invalid JSON value
+      const invalidCachedSnippet: CachedSnippet = {
+        id: 'snippet-cache-id',
+        type: 'askAgent',
+        promptExcerpt: 'Summarize',
+        value: 'not valid json {', // Invalid JSON
+        timestamp: new Date().toISOString(),
+        tool: 'claude',
+      };
+      const setSnippetMock = vi.fn(async () => {});
+      const cacheManager: SnippetCacheManager = {
+        getSnippet: vi.fn(() => invalidCachedSnippet),
+        setSnippet: setSnippetMock,
+      };
+
+      // Tool returns fresh result when re-executed
+      invokeToolMock.mockResolvedValueOnce({
+        command: 'claude',
+        args: [],
+        stdout: 'Fresh result from agent',
+        stderr: '',
+      });
+
+      try {
+        const snippets = parseSnippets("{{ askAgent('Summarize this repo') }}");
+        const context = await executeSnippets(
+          snippets,
+          makeOptions({
+            noCache: false,
+            cacheManager,
+            packageName: 'pkg',
+            packageVersion: '1.0.0',
+            verbose: true,
+          }),
+        );
+
+        // Should have re-executed the tool
+        expect(invokeToolMock).toHaveBeenCalledTimes(1);
+        // Should have the fresh result
+        expect(context.snippets.snippet_0.value).toBe('Fresh result from agent');
+        // Should have logged a warning about invalid cache
+        expect(warnSpy).toHaveBeenCalledWith(
+          expect.stringContaining('Invalid JSON in askAgent cache'),
+        );
+        // Should have saved the new value to cache
+        expect(setSnippetMock).toHaveBeenCalledTimes(1);
+      } finally {
+        logSpy.mockRestore();
+        warnSpy.mockRestore();
+      }
+    });
+
+    it('does not log warning for invalid JSON cache when verbose is false', async () => {
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+      const invalidCachedSnippet: CachedSnippet = {
+        id: 'snippet-cache-id',
+        type: 'askUser',
+        promptExcerpt: 'Name?',
+        value: 'invalid', // Invalid JSON
+        timestamp: new Date().toISOString(),
+      };
+      const cacheManager: SnippetCacheManager = {
+        getSnippet: vi.fn(() => invalidCachedSnippet),
+        setSnippet: vi.fn(async () => {}),
+      };
+
+      promptMock.mockResolvedValueOnce({ value: 'Answer' });
+
+      try {
+        const snippets = parseSnippets("{{ askUser('Name?') }}");
+        await executeSnippets(
+          snippets,
+          makeOptions({
+            noCache: false,
+            cacheManager,
+            packageName: 'pkg',
+            packageVersion: '1.0.0',
+            verbose: false, // verbose is off
+          }),
+        );
+
+        // Should NOT have logged a warning when verbose is off
+        expect(warnSpy).not.toHaveBeenCalled();
+        // But should still re-prompt
+        expect(promptMock).toHaveBeenCalledTimes(1);
+      } finally {
+        warnSpy.mockRestore();
+      }
+    });
+  });
 });
