@@ -32,7 +32,7 @@ describe('core/publisher security', () => {
     await fs.rm(root, { recursive: true, force: true });
   });
 
-  it('skips symlinks under templates if any', async () => {
+  it('includes internal symlinks that point within package root', async () => {
     const linkPath = path.join(root, 'templates', 'link.hbs');
     let symlinkCreated = false;
     try {
@@ -43,7 +43,69 @@ describe('core/publisher security', () => {
     }
     const files = await collectPackageFiles(root);
     if (symlinkCreated) {
-      expect(files).not.toContain('templates/link.hbs');
+      expect(files).toContain('templates/link.hbs');
+      await fs.unlink(linkPath);
+    }
+  });
+
+  it('skips symlinks that point outside package root', async () => {
+    const externalTarget = path.join(os.tmpdir(), 'tz-pub-sec-external-target.txt');
+    const linkPath = path.join(root, 'templates', 'external-link.hbs');
+    let symlinkCreated = false;
+    try {
+      await fs.writeFile(externalTarget, '# external', 'utf8');
+      await fs.symlink(externalTarget, linkPath);
+      symlinkCreated = true;
+    } catch {
+      // Windows or restricted environments may fail; skip assertion
+    }
+    const files = await collectPackageFiles(root);
+    if (symlinkCreated) {
+      expect(files).not.toContain('templates/external-link.hbs');
+      await fs.unlink(linkPath);
+      await fs.unlink(externalTarget);
+    }
+  });
+
+  it('handles symlink directory cycles without infinite loop', async () => {
+    // Create a symlink that points to its own parent (templates/loop -> templates)
+    const loopLink = path.join(root, 'templates', 'loop');
+    let symlinkCreated = false;
+    try {
+      await fs.symlink(path.join(root, 'templates'), loopLink);
+      symlinkCreated = true;
+    } catch {
+      // Windows or restricted environments may fail; skip assertion
+    }
+    if (symlinkCreated) {
+      // Should complete without hanging — cycle is detected and skipped
+      const files = await collectPackageFiles(root);
+      expect(files).toContain('templates/CLAUDE.md.hbs');
+      // The cyclic symlink should NOT produce nested paths like templates/loop/CLAUDE.md.hbs
+      expect(files).not.toContain('templates/loop/CLAUDE.md.hbs');
+      await fs.unlink(loopLink);
+    }
+  });
+
+  it('handles symlink to package root without infinite loop', async () => {
+    // Create a symlink that points to the package root itself
+    const rootLink = path.join(root, 'templates', 'rootlink');
+    let symlinkCreated = false;
+    try {
+      await fs.symlink(root, rootLink);
+      symlinkCreated = true;
+    } catch {
+      // Windows or restricted environments may fail; skip assertion
+    }
+    if (symlinkCreated) {
+      // Should complete without hanging — visited-realpath guard breaks the cycle
+      const files = await collectPackageFiles(root);
+      expect(files).toContain('templates/CLAUDE.md.hbs');
+      // The root symlink may expose non-template files (agents.toml, README.md) once,
+      // but must NOT recurse infinitely into templates/rootlink/templates/rootlink/...
+      const deeplyNested = files.filter((f: string) => f.includes('rootlink/templates/rootlink'));
+      expect(deeplyNested).toHaveLength(0);
+      await fs.unlink(rootLink);
     }
   });
 
@@ -52,5 +114,54 @@ describe('core/publisher security', () => {
     await expect(createTarball(root, ['templates/../../evil.txt'])).rejects.toMatchObject({
       code: ErrorCode.INVALID_PACKAGE,
     });
+  });
+
+  it('includes files when the start directory is a symlink to an internal dir', async () => {
+    // Create a real directory with content
+    const realDir = path.join(root, 'real-prompts');
+    await fs.mkdir(realDir, { recursive: true });
+    await fs.writeFile(path.join(realDir, 'prompt.txt'), 'some prompt content', 'utf8');
+
+    // Create a symlink to the real directory
+    const symlinkDir = path.join(root, 'prompts');
+    let symlinkCreated = false;
+    try {
+      await fs.symlink(realDir, symlinkDir);
+      symlinkCreated = true;
+    } catch {
+      // Windows or restricted environments may fail; skip assertion
+    }
+
+    if (symlinkCreated) {
+      // Update manifest to reference the symlinked directory
+      await write(
+        root,
+        'agents.toml',
+        `
+[package]
+name = "@sec/demo"
+version = "0.1.0"
+
+[exports.claude]
+template = "templates/CLAUDE.md.hbs"
+promptsDir = "prompts"
+`,
+      );
+
+      const files = await collectPackageFiles(root);
+      // The symlinked directory should be traversed and its contents included
+      expect(files).toContain('prompts/prompt.txt');
+
+      // Cleanup
+      await fs.unlink(symlinkDir);
+      await fs.rm(realDir, { recursive: true });
+
+      // Restore original manifest
+      await write(
+        root,
+        'agents.toml',
+        `\n[package]\nname = "@sec/demo"\nversion = "0.1.0"\n\n[exports.claude]\ntemplate = "templates/CLAUDE.md.hbs"\n`,
+      );
+    }
   });
 });

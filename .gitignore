@@ -27,6 +27,10 @@ yarn.lock
 
 # Terrazul
 .claude
+.codex
+AGENTS.md
+CLAUDE.md
+.gemini
 .terrazul
 agent_modules
 .tz-backup/
