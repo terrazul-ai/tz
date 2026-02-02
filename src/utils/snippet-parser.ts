@@ -50,5 +50,5 @@ export async function generateSnippetId(
   snippet: ParsedSnippet,
   packageDir?: string,
 ): Promise<string> {
-  return coreGenerateSnippetId(snippet, nodeCrypto, nodeFs, packageDir);
+  return await coreGenerateSnippetId(snippet, nodeCrypto, nodeFs, packageDir);
 }
