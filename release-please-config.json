@@ -9,6 +9,13 @@
       "package-name": "@terrazul/tz",
       "include-component-in-tag": false,
       "initial-version": "0.0.1"
+    },
+    "packages/package-core": {
+      "path": "packages/package-core",
+      "release-type": "node",
+      "package-name": "@terrazul/package-core",
+      "include-component-in-tag": true,
+      "initial-version": "0.1.0"
     }
   },
   "changelog-types": [

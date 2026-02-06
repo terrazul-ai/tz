@@ -435,7 +435,7 @@ jobs:
     needs: stage-release
     runs-on: ubuntu-24.04
     if: >-
-      github.event_name == 'release' && (
+      github.event_name == 'release' && !startsWith(github.event.release.tag_name, 'package-core-') && (
         startsWith(github.event.release.tag_name, 'v') ||
         startsWith(github.event.release.tag_name, 'sea-v') ||
         startsWith(github.event.release.tag_name, 'tz-v')
