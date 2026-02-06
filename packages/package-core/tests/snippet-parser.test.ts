@@ -282,7 +282,7 @@ describe('safeResolveWithin', () => {
   });
 
   it('normalizes backslashes', () => {
-    expect(safeResolveWithin('/root/pkg', 'src\\file.ts')).toBe('/root/pkg/src/file.ts');
+    expect(safeResolveWithin('/root/pkg', String.raw`src\file.ts`)).toBe('/root/pkg/src/file.ts');
   });
 
   it('handles trailing slashes on base dir', () => {
