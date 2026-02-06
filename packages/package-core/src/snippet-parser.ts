@@ -44,6 +44,10 @@ export function safeResolveWithin(baseDir: string, relativePath: string): string
   const normalizedBase = baseDir.replaceAll('\\', '/').replace(/\/+$/, '');
   const normalizedRel = relativePath.replaceAll('\\', '/');
 
+  // Detect Windows drive letter prefix (e.g. "C:/")
+  const driveMatch = normalizedBase.match(/^([A-Za-z]:)\//);
+  const prefix = driveMatch ? driveMatch[1] : '';
+
   // Build the full path
   const fullPath = `${normalizedBase}/${normalizedRel}`;
 
@@ -58,12 +62,19 @@ export function safeResolveWithin(baseDir: string, relativePath: string): string
       resolved.push(part);
     }
   }
-  const resolvedPath = '/' + resolved.join('/');
 
-  // Check if resolved path is within the base directory
-  const normalizedBaseCheck = normalizedBase.startsWith('/')
+  // Reconstruct path preserving the original prefix style
+  const resolvedPath = prefix
+    ? prefix + '/' + resolved.slice(1).join('/')
+    : '/' + resolved.join('/');
+
+  // Normalize base for comparison using the same logic
+  const normalizedBaseCheck = prefix
     ? normalizedBase
-    : '/' + normalizedBase;
+    : normalizedBase.startsWith('/')
+      ? normalizedBase
+      : '/' + normalizedBase;
+
   if (resolvedPath !== normalizedBaseCheck && !resolvedPath.startsWith(normalizedBaseCheck + '/')) {
     return null;
   }

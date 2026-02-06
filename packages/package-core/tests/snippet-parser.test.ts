@@ -293,4 +293,22 @@ describe('safeResolveWithin', () => {
   it('handles trailing slashes on base dir', () => {
     expect(safeResolveWithin('/root/pkg/', 'src/file.ts')).toBe('/root/pkg/src/file.ts');
   });
+
+  it('resolves Windows drive letter paths', () => {
+    expect(safeResolveWithin('C:/Users/pkg', 'src/file.ts')).toBe('C:/Users/pkg/src/file.ts');
+  });
+
+  it('resolves Windows backslash paths', () => {
+    expect(safeResolveWithin(String.raw`C:\Users\pkg`, String.raw`src\file.ts`)).toBe(
+      'C:/Users/pkg/src/file.ts',
+    );
+  });
+
+  it('returns null for traversal on Windows paths', () => {
+    expect(safeResolveWithin('C:/Users/pkg', '../../etc/passwd')).toBeNull();
+  });
+
+  it('returns exact base for dot on Windows paths', () => {
+    expect(safeResolveWithin('C:/Users/pkg', '.')).toBe('C:/Users/pkg');
+  });
 });
