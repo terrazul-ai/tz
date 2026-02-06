@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.22.0](https://github.com/terrazul-ai/tz/compare/v0.21.2...v0.22.0) (2026-02-06)
+
+
+### Features
+
+* create shared package-core  ([#96](https://github.com/terrazul-ai/tz/issues/96)) ([74b4602](https://github.com/terrazul-ai/tz/commit/74b4602d85d8e4abdfbf8ffa4315f4be51d40992))
+
 ## [0.21.2](https://github.com/terrazul-ai/tz/compare/v0.21.1...v0.21.2) (2026-02-02)
 
 
