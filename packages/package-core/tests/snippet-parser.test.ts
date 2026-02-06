@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
 import { nodeCrypto } from '../src/adapters/node.js';
-import { parseSnippets, generateSnippetId, safeResolveWithin, SnippetParseError } from '../src/index.js';
+import {
+  parseSnippets,
+  generateSnippetId,
+  safeResolveWithin,
+  SnippetParseError,
+} from '../src/index.js';
 
 describe('snippet parser', () => {
   it('parses askUser without options', () => {
