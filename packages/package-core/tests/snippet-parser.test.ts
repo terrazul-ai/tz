@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { nodeCrypto } from '../src/adapters/node.js';
-import { parseSnippets, generateSnippetId, SnippetParseError } from '../src/index.js';
+import { parseSnippets, generateSnippetId, safeResolveWithin, SnippetParseError } from '../src/index.js';
 
 describe('snippet parser', () => {
   it('parses askUser without options', () => {
@@ -261,5 +261,31 @@ describe('generateSnippetId', () => {
     const id2 = await generateSnippetId(snippet2, nodeCrypto);
 
     expect(id1).not.toBe(id2);
+  });
+});
+
+describe('safeResolveWithin', () => {
+  it('resolves simple relative path within base', () => {
+    expect(safeResolveWithin('/root/pkg', 'src/file.ts')).toBe('/root/pkg/src/file.ts');
+  });
+
+  it('returns null for path traversal', () => {
+    expect(safeResolveWithin('/root/pkg', '../../etc/passwd')).toBeNull();
+  });
+
+  it('returns null for sibling directory prefix collision', () => {
+    expect(safeResolveWithin('/root/pkg', '../pkg2/secret.md')).toBeNull();
+  });
+
+  it('allows exact base directory path', () => {
+    expect(safeResolveWithin('/root/pkg', '.')).toBe('/root/pkg');
+  });
+
+  it('normalizes backslashes', () => {
+    expect(safeResolveWithin('/root/pkg', 'src\\file.ts')).toBe('/root/pkg/src/file.ts');
+  });
+
+  it('handles trailing slashes on base dir', () => {
+    expect(safeResolveWithin('/root/pkg/', 'src/file.ts')).toBe('/root/pkg/src/file.ts');
   });
 });

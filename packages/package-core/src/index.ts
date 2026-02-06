@@ -45,4 +45,4 @@ export { SnippetParseError } from './types.js';
 export type { CryptoAdapter, FileAdapter, PlatformAdapter } from './adapters/types.js';
 
 // Re-export parsing functions
-export { parseSnippets, generateSnippetId } from './snippet-parser.js';
+export { parseSnippets, generateSnippetId, safeResolveWithin } from './snippet-parser.js';

@@ -38,7 +38,7 @@ interface ParsedArguments {
  * Safely resolve a path within a base directory.
  * Returns the resolved path if it's within the base directory, null otherwise.
  */
-function safeResolveWithin(baseDir: string, relativePath: string): string | null {
+export function safeResolveWithin(baseDir: string, relativePath: string): string | null {
   // Simple path resolution without using node:path
   // Normalize slashes
   const normalizedBase = baseDir.replaceAll('\\', '/').replace(/\/+$/, '');
@@ -64,7 +64,7 @@ function safeResolveWithin(baseDir: string, relativePath: string): string | null
   const normalizedBaseCheck = normalizedBase.startsWith('/')
     ? normalizedBase
     : '/' + normalizedBase;
-  if (!resolvedPath.startsWith(normalizedBaseCheck)) {
+  if (resolvedPath !== normalizedBaseCheck && !resolvedPath.startsWith(normalizedBaseCheck + '/')) {
     return null;
   }
 
