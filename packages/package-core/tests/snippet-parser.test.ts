@@ -339,4 +339,18 @@ describe('safeResolveWithin', () => {
   it('returns null for absolute Windows path outside base', () => {
     expect(safeResolveWithin('C:/Users/pkg', 'C:/Windows/system32')).toBeNull();
   });
+
+  it('returns null for absolute Windows path on a different drive', () => {
+    expect(safeResolveWithin('C:/Users/pkg', 'D:/Users/pkg/secret.txt')).toBeNull();
+  });
+
+  it('returns null for different drive even when subpath matches base', () => {
+    expect(safeResolveWithin('C:/Users/pkg', 'D:/Users/pkg/src/file.ts')).toBeNull();
+  });
+
+  it('handles case-insensitive drive letter comparison', () => {
+    expect(safeResolveWithin('c:/Users/pkg', 'C:/Users/pkg/src/file.ts')).toBe(
+      'c:/Users/pkg/src/file.ts',
+    );
+  });
 });

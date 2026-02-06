@@ -49,7 +49,13 @@ export function safeResolveWithin(baseDir: string, relativePath: string): string
   const prefix = driveMatch ? driveMatch[1] : '';
 
   // Detect if relativePath is absolute (Unix /... or Windows C:/...)
-  const isAbsolute = normalizedRel.startsWith('/') || /^[A-Za-z]:\//.test(normalizedRel);
+  const relDriveMatch = normalizedRel.match(/^([A-Za-z]:)\//);
+  const isAbsolute = normalizedRel.startsWith('/') || relDriveMatch !== null;
+
+  // Reject absolute Windows paths on a different drive than the base
+  if (relDriveMatch && prefix && relDriveMatch[1].toUpperCase() !== prefix.toUpperCase()) {
+    return null;
+  }
 
   // Build the full path — use the absolute path directly instead of concatenating
   const fullPath = isAbsolute ? normalizedRel : `${normalizedBase}/${normalizedRel}`;
