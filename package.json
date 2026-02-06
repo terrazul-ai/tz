@@ -14,7 +14,7 @@
   "type": "module",
   "packageManager": "pnpm@10.15.0+sha512.486ebc259d3e999a4e8691ce03b5cac4a71cbeca39372a9b762cb500cfdf0873e2cb16abe3d951b1ee2cf012503f027b98b6584e4df22524e0c7450d9ec7aa7b",
   "scripts": {
-    "build": "node build.config.mjs",
+    "build": "pnpm --filter '@terrazul/package-core' build && node build.config.mjs",
     "build:watch": "node build.config.mjs --watch",
     "dev": "tsx src/index.ts",
     "dev:watch": "tsx watch src/index.ts",
@@ -30,7 +30,7 @@
     "lint:fix": "eslint . --ext .ts,.tsx --fix",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "typecheck": "tsc -p tsconfig.typecheck.json",
+    "typecheck": "pnpm --filter '@terrazul/package-core' build && tsc -p tsconfig.typecheck.json",
     "test-registry": "node test-registry/server.js",
     "test-workflow": "npm run test-workflow:clean && npm run test-workflow:extract && npm run test-workflow:publish && npm run test-workflow:install",
     "test-workflow:clean": "rm -rf test-workflow-output && mkdir -p test-workflow-output && cd test-workflow-output && npm run tz -- init",
@@ -55,6 +55,7 @@
     "node": ">=18.0.0"
   },
   "dependencies": {
+    "@terrazul/package-core": "workspace:*",
     "@iarna/toml": "^3.0.0",
     "chalk": "^5.3.0",
     "cli-truncate": "^4.0.0",

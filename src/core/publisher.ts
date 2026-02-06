@@ -1,4 +1,4 @@
-import { promises as fs } from 'node:fs';
+import { promises as fs, realpathSync, statSync } from 'node:fs';
 import path from 'node:path';
 
 import * as tar from 'tar';
@@ -8,8 +8,6 @@ import { readManifest, validateManifest } from '../utils/manifest.js';
 import { resolveWithin } from '../utils/path.js';
 
 import type { Stats } from 'node:fs';
-
-// removed: use resolveWithin instead
 
 async function safeStat(p: string): Promise<Stats | null> {
   try {
@@ -27,8 +25,26 @@ export interface PublishPlan {
 }
 
 /**
+ * Check if a symlink points within the package root.
+ * Returns the resolved stat if safe, or null if the symlink should be skipped.
+ */
+function resolveInternalSymlink(absPath: string, root: string): Stats | null {
+  try {
+    const realTarget = realpathSync(absPath);
+    const rootResolved = realpathSync(path.resolve(root));
+    if (!realTarget.startsWith(rootResolved + path.sep) && realTarget !== rootResolved) {
+      return null; // symlink escapes package root
+    }
+    return statSync(absPath);
+  } catch {
+    return null; // broken symlink
+  }
+}
+
+/**
  * Recursively add all files from a directory to the allowed list.
- * Skips symlinks for security.
+ * Internal symlinks (pointing within the package root) are resolved and included.
+ * External and broken symlinks are skipped for security.
  */
 async function addDirectoryRecursively(
   root: string,
@@ -37,7 +53,21 @@ async function addDirectoryRecursively(
 ): Promise<void> {
   const dirAbs = path.join(root, dirRel);
   const stat = await safeStat(dirAbs);
-  if (!stat || !stat.isDirectory()) return;
+  if (!stat) return;
+
+  // Handle the case where the start directory itself is a symlink
+  if (stat.isSymbolicLink()) {
+    const targetStat = resolveInternalSymlink(dirAbs, root);
+    if (!targetStat || !targetStat.isDirectory()) return;
+    // Symlink points to a valid internal directory, continue with traversal
+  } else if (!stat.isDirectory()) {
+    return;
+  }
+
+  // Track visited real paths to prevent symlink directory cycles
+  const visited = new Set<string>();
+  const initialReal = realpathSync(dirAbs);
+  visited.add(initialReal);
 
   const stack: string[] = [dirRel];
   while (stack.length > 0) {
@@ -48,9 +78,25 @@ async function addDirectoryRecursively(
       const relChild = path.join(rel, ent.name);
       const absChild = path.join(abs, ent.name);
       const lst = await fs.lstat(absChild);
-      if (lst.isSymbolicLink()) continue; // skip symlinks for safety
-      if (lst.isDirectory()) stack.push(relChild);
-      else if (lst.isFile()) allowed.push(relChild);
+      if (lst.isSymbolicLink()) {
+        const targetStat = resolveInternalSymlink(absChild, root);
+        if (!targetStat) continue;
+        if (targetStat.isDirectory()) {
+          const realDir = realpathSync(absChild);
+          if (visited.has(realDir)) continue; // cycle detected — skip
+          visited.add(realDir);
+          stack.push(relChild);
+        } else if (targetStat.isFile()) {
+          allowed.push(relChild);
+        }
+      } else if (lst.isDirectory()) {
+        const realDir = realpathSync(absChild);
+        if (visited.has(realDir)) continue;
+        visited.add(realDir);
+        stack.push(relChild);
+      } else if (lst.isFile()) {
+        allowed.push(relChild);
+      }
     }
   }
 }
@@ -128,7 +174,13 @@ export async function createTarball(root: string, files: string[]): Promise<Buff
     } catch {
       throw new TerrazulError(ErrorCode.INVALID_PACKAGE, `Path escapes root: ${rel}`);
     }
-    const st = await safeStat(abs);
+    // Use fs.stat (not lstat) to follow symlinks — internal symlinks are now included
+    let st: Stats | null = null;
+    try {
+      st = await fs.stat(abs);
+    } catch {
+      st = null;
+    }
     if (!st || !st.isFile()) {
       throw new TerrazulError(ErrorCode.FILE_NOT_FOUND, `Missing file: ${rel}`);
     }
@@ -145,6 +197,7 @@ export async function createTarball(root: string, files: string[]): Promise<Buff
         gzip: true,
         portable: true,
         noMtime: true,
+        follow: true, // follow symlinks so they're archived as regular files
       },
       files,
     );

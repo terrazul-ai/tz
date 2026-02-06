@@ -1,0 +1,55 @@
+{
+  "name": "@terrazul/package-core",
+  "version": "0.1.0",
+  "description": "Shared package parsing utilities for Terrazul CLI and Desktop",
+  "license": "Apache-2.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "bun": "./dist/index.js",
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./adapters/node": {
+      "types": "./dist/adapters/node.d.ts",
+      "import": "./dist/adapters/node.js",
+      "default": "./dist/adapters/node.js"
+    },
+    "./adapters/bun": {
+      "bun": "./dist/adapters/bun.js",
+      "types": "./dist/adapters/bun.d.ts",
+      "import": "./dist/adapters/bun.js",
+      "default": "./dist/adapters/bun.js"
+    },
+    "./dist/*": "./dist/*"
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "yaml": "^2.6.0"
+  },
+  "devDependencies": {
+    "@types/node": "^18.0.0",
+    "typescript": "^5.5.4",
+    "vitest": "^1.6.0"
+  },
+  "peerDependencies": {
+    "bun-types": ">=1.0.0"
+  },
+  "peerDependenciesMeta": {
+    "bun-types": {
+      "optional": true
+    }
+  }
+}
