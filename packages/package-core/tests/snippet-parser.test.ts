@@ -311,4 +311,32 @@ describe('safeResolveWithin', () => {
   it('returns exact base for dot on Windows paths', () => {
     expect(safeResolveWithin('C:/Users/pkg', '.')).toBe('C:/Users/pkg');
   });
+
+  it('resolves absolute path within base directory', () => {
+    expect(safeResolveWithin('/root/pkg', '/root/pkg/prompts/foo.md')).toBe(
+      '/root/pkg/prompts/foo.md',
+    );
+  });
+
+  it('returns null for absolute path outside base directory', () => {
+    expect(safeResolveWithin('/root/pkg', '/etc/passwd')).toBeNull();
+  });
+
+  it('returns null for absolute path with traversal escaping base', () => {
+    expect(safeResolveWithin('/root/pkg', '/root/pkg/../../etc/passwd')).toBeNull();
+  });
+
+  it('resolves absolute path equal to base directory', () => {
+    expect(safeResolveWithin('/root/pkg', '/root/pkg')).toBe('/root/pkg');
+  });
+
+  it('resolves absolute Windows path within base', () => {
+    expect(safeResolveWithin('C:/Users/pkg', 'C:/Users/pkg/src/file.ts')).toBe(
+      'C:/Users/pkg/src/file.ts',
+    );
+  });
+
+  it('returns null for absolute Windows path outside base', () => {
+    expect(safeResolveWithin('C:/Users/pkg', 'C:/Windows/system32')).toBeNull();
+  });
 });

@@ -48,8 +48,11 @@ export function safeResolveWithin(baseDir: string, relativePath: string): string
   const driveMatch = normalizedBase.match(/^([A-Za-z]:)\//);
   const prefix = driveMatch ? driveMatch[1] : '';
 
-  // Build the full path
-  const fullPath = `${normalizedBase}/${normalizedRel}`;
+  // Detect if relativePath is absolute (Unix /... or Windows C:/...)
+  const isAbsolute = normalizedRel.startsWith('/') || /^[A-Za-z]:\//.test(normalizedRel);
+
+  // Build the full path — use the absolute path directly instead of concatenating
+  const fullPath = isAbsolute ? normalizedRel : `${normalizedBase}/${normalizedRel}`;
 
   // Normalize .. and . segments
   const parts = fullPath.split('/');
