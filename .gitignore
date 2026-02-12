@@ -23,6 +23,7 @@ pnpm-debug.log*
 
 # Lockfiles from other managers
 package-lock.json
+!packages/*/package-lock.json
 yarn.lock
 
 # Terrazul
