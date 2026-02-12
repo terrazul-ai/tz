@@ -69,8 +69,8 @@ version = "1.1.1"
   id = "snippet_b9abefcb"
   type = "askUser"
   prompt_excerpt = "What is the name of this project?"
-  value = "tz"
-  timestamp = "2026-01-28T04:45:10.108Z"
+  value = '"tz"'
+  timestamp = "2026-02-12T17:06:42.848Z"
 
   [[packages."@terrazul/tdd-engineer".snippets]]
   id = "snippet_e88ad4cb"
@@ -88,5 +88,5 @@ version = "1.1.1"
   timestamp = "2026-01-28T04:29:09.078Z"
 
 [metadata]
-generated_at = "2026-01-28T04:45:10.108Z"
-cli_version = "0.21.1"
+generated_at = "2026-02-12T17:06:42.849Z"
+cli_version = "0.21.2"
