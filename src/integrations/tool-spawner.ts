@@ -7,6 +7,7 @@ import { ErrorCode, TerrazulError } from '../core/errors.js';
 
 import type { MCPConfig } from './claude-code.js';
 import type { ToolSpec } from '../types/context.js';
+import type { Logger } from '../utils/logger.js';
 
 export interface SpawnToolOptions {
   tool: ToolSpec;
@@ -16,6 +17,8 @@ export interface SpawnToolOptions {
   additionalArgs?: string[];
   /** Custom CODEX_HOME path for Codex sessions (user-level prompts, config) */
   codexHome?: string;
+  /** Logger for debug output */
+  logger?: Logger;
 }
 
 /**
@@ -102,7 +105,7 @@ async function spawnClaudeCodeInternal(options: SpawnToolOptions): Promise<numbe
  * For interactive spawning, we just run 'codex' directly.
  */
 async function spawnCodexInternal(options: SpawnToolOptions): Promise<number> {
-  const { tool, cwd, mcpConfig, additionalArgs = [], codexHome } = options;
+  const { tool, cwd, mcpConfig, additionalArgs = [], codexHome, logger } = options;
 
   return new Promise((resolve, reject) => {
     const command = tool.command ?? 'codex';
@@ -146,6 +149,10 @@ async function spawnCodexInternal(options: SpawnToolOptions): Promise<number> {
     if (codexHome) {
       env.CODEX_HOME = codexHome;
     }
+
+    logger?.debug(`codex spawn: ${command} ${args.join(' ')}`);
+    logger?.debug(`codex cwd: ${workingDir}`);
+    logger?.debug(`CODEX_HOME: ${env.CODEX_HOME ?? '(not set)'}`);
 
     const child = spawn(command, args, {
       cwd: workingDir,

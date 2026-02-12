@@ -665,6 +665,7 @@ async function spawnToolWithConfig(
     mcpConfig,
     mcpConfigPath: mcpResult.configPath,
     codexHome,
+    logger: ctx.logger,
   });
 
   return exitCode;
