@@ -116,6 +116,42 @@ describe('core/publisher security', () => {
     });
   });
 
+  it('rejects symlinks whose realpath resolves outside package root at tarball time', async () => {
+    // TOCTOU defense: even if a symlink passes collectPackageFiles, createTarball
+    // must re-validate that the resolved target stays within root.
+    const externalTarget = path.join(os.tmpdir(), 'tz-pub-sec-toctou-secret.txt');
+    const linkPath = path.join(root, 'templates', 'toctou-link.hbs');
+    let symlinkCreated = false;
+    try {
+      await fs.writeFile(externalTarget, 'SECRET DATA', 'utf8');
+      await fs.symlink(externalTarget, linkPath);
+      symlinkCreated = true;
+    } catch {
+      // Windows or restricted environments may fail; skip assertion
+    }
+    if (symlinkCreated) {
+      // The file list includes the symlink as if it were collected
+      await expect(
+        createTarball(root, [
+          'agents.toml',
+          'templates/CLAUDE.md.hbs',
+          'templates/toctou-link.hbs',
+        ]),
+      ).rejects.toThrow(TerrazulError);
+      await expect(
+        createTarball(root, [
+          'agents.toml',
+          'templates/CLAUDE.md.hbs',
+          'templates/toctou-link.hbs',
+        ]),
+      ).rejects.toMatchObject({
+        code: ErrorCode.INVALID_PACKAGE,
+      });
+      await fs.unlink(linkPath);
+      await fs.unlink(externalTarget);
+    }
+  });
+
   it('includes files when the start directory is a symlink to an internal dir', async () => {
     // Create a real directory with content
     const realDir = path.join(root, 'real-prompts');

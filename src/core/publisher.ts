@@ -1,4 +1,4 @@
-import { promises as fs, realpathSync, statSync } from 'node:fs';
+import { promises as fs, realpathSync, statSync, lstatSync } from 'node:fs';
 import path from 'node:path';
 
 import * as tar from 'tar';
@@ -173,6 +173,24 @@ export async function createTarball(root: string, files: string[]): Promise<Buff
       abs = resolveWithin(root, rel);
     } catch {
       throw new TerrazulError(ErrorCode.INVALID_PACKAGE, `Path escapes root: ${rel}`);
+    }
+    // Re-validate symlink targets at tarball time to prevent TOCTOU races:
+    // a symlink could be swapped after collectPackageFiles to point outside root.
+    try {
+      const lst = lstatSync(abs);
+      if (lst.isSymbolicLink()) {
+        const realTarget = realpathSync(abs);
+        const rootResolved = realpathSync(path.resolve(root));
+        if (realTarget !== rootResolved && !realTarget.startsWith(rootResolved + path.sep)) {
+          throw new TerrazulError(
+            ErrorCode.INVALID_PACKAGE,
+            `Symlink escapes package root: ${rel}`,
+          );
+        }
+      }
+    } catch (error) {
+      if (error instanceof TerrazulError) throw error;
+      throw new TerrazulError(ErrorCode.FILE_NOT_FOUND, `Cannot resolve file: ${rel}`);
     }
     // Use fs.stat (not lstat) to follow symlinks — internal symlinks are now included
     let st: Stats | null = null;
