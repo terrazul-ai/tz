@@ -22,12 +22,12 @@ export const TOOL_ROOT_DIRECTORIES: Record<ToolType, string> = {
 /**
  * Operational directories supported by each tool type.
  * - Claude: agents, commands, skills
- * - Codex: skills (project-level), prompts (user-level only, routed to CODEX_HOME)
+ * - Codex: skills (project-level), commands (routed to CODEX_HOME/prompts/)
  * - Gemini: commands, skills (similar to Claude)
  */
 export const TOOL_OPERATIONAL_DIRS: Record<ToolType, string[]> = {
   claude: ['agents', 'commands', 'skills'],
-  codex: ['skills', 'prompts'],
+  codex: ['skills', 'commands'],
   gemini: ['commands', 'skills'],
 };
 
@@ -347,10 +347,13 @@ export async function createSymlinks(options: CreateSymlinksOptions): Promise<{
       continue;
     }
 
-    // CODEX PROMPTS: Route to CODEX_HOME (user-level) instead of .codex (project-level)
-    // Codex only reads prompts from $CODEX_HOME/prompts/, not .codex/prompts/
-    if (tool === 'codex' && targetDirName === 'prompts' && codexHome) {
-      toolRoot = codexHome;
+    // CODEX COMMANDS: Route to CODEX_HOME/prompts/ (user-level) instead of .codex/commands/
+    // Codex reads slash commands from $CODEX_HOME/prompts/
+    if (tool === 'codex' && targetDirName === 'commands') {
+      if (codexHome) {
+        toolRoot = codexHome;
+      }
+      targetDirName = 'prompts'; // Codex stores commands as "prompts"
     }
 
     // Special handling for skills: symlink the skill directory, not individual files
