@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.22.1](https://github.com/terrazul-ai/tz/compare/v0.22.0...v0.22.1) (2026-02-16)
+
+
+### Bug Fixes
+
+* **core:** add package-core lockfile for npm ci in publish workflow ([#99](https://github.com/terrazul-ai/tz/issues/99)) ([e068f7f](https://github.com/terrazul-ai/tz/commit/e068f7fc34f6c88c48d05222caa4f5296edf61a2))
+* **integrations:** rename Codex prompts to commands and route to prompts/ on disk ([#101](https://github.com/terrazul-ai/tz/issues/101)) ([29de32f](https://github.com/terrazul-ai/tz/commit/29de32f5acd7458158bbf18272f7146f578f571d))
+* **publisher:** resolve internal symlinks instead of skipping them ([#95](https://github.com/terrazul-ai/tz/issues/95)) ([2e38dbc](https://github.com/terrazul-ai/tz/commit/2e38dbcdbb41bcbabb9d64f2ff6cb5537834ea72))
+
 ## [0.22.0](https://github.com/terrazul-ai/tz/compare/v0.21.2...v0.22.0) (2026-02-06)
 
 

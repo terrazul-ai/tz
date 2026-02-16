@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.1](https://github.com/terrazul-ai/tz/compare/package-core-v0.2.0...package-core-v0.2.1) (2026-02-16)
+
+
+### Bug Fixes
+
+* **core:** add package-core lockfile for npm ci in publish workflow ([#99](https://github.com/terrazul-ai/tz/issues/99)) ([e068f7f](https://github.com/terrazul-ai/tz/commit/e068f7fc34f6c88c48d05222caa4f5296edf61a2))
+
 ## [0.2.0](https://github.com/terrazul-ai/tz/compare/package-core-v0.1.0...package-core-v0.2.0) (2026-02-06)
 
 
