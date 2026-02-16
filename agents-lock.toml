@@ -15,5 +15,5 @@ dependencies = { }
 yanked = false
 
 [metadata]
-generated_at = "2026-01-28T04:45:05.925Z"
-cli_version = "0.21.1"
+generated_at = "2026-02-12T17:06:39.178Z"
+cli_version = "0.21.2"
