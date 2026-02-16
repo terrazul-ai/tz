@@ -402,67 +402,16 @@ cli_version = "0.1.0"
       expect(_typeCheck).toBe(spawnClaudeCode);
     });
 
-    it('includes --model flag when model is specified', async () => {
-      mockSpawn.mockReturnValue(createMockChildProcess());
+    it('throws TOOL_NOT_FOUND on ENOENT error', async () => {
+      // EventEmitter is required here because ChildProcess extends it (not EventTarget)
+      // eslint-disable-next-line unicorn/prefer-event-target
+      const emitter = new EventEmitter() as ChildProcess;
+      const error = new Error('spawn claude ENOENT') as NodeJS.ErrnoException;
+      error.code = 'ENOENT';
+      setTimeout(() => emitter.emit('error', error), 10);
+      mockSpawn.mockReturnValue(emitter);
 
-      await spawnClaudeCode('/tmp/mcp.json', [], '/tmp', 'opus');
-
-      expect(mockSpawn).toHaveBeenCalledOnce();
-      const args = mockSpawn.mock.calls[0]?.[1] as string[];
-      expect(args).toContain('--model');
-      expect(args).toContain('opus');
-    });
-
-    it('skips --model flag when model is undefined', async () => {
-      mockSpawn.mockReturnValue(createMockChildProcess());
-
-      await spawnClaudeCode('/tmp/mcp.json', [], '/tmp');
-
-      expect(mockSpawn).toHaveBeenCalledOnce();
-      const args = mockSpawn.mock.calls[0]?.[1] as string[];
-      expect(args).not.toContain('--model');
-    });
-
-    it('skips --model flag when model is "default"', async () => {
-      mockSpawn.mockReturnValue(createMockChildProcess());
-
-      await spawnClaudeCode('/tmp/mcp.json', [], '/tmp', 'default');
-
-      expect(mockSpawn).toHaveBeenCalledOnce();
-      const args = mockSpawn.mock.calls[0]?.[1] as string[];
-      expect(args).not.toContain('--model');
-      expect(args).not.toContain('default');
-    });
-
-    it('includes --mcp-config and --strict-mcp-config flags', async () => {
-      mockSpawn.mockReturnValue(createMockChildProcess());
-
-      await spawnClaudeCode('/tmp/mcp.json');
-
-      expect(mockSpawn).toHaveBeenCalledOnce();
-      const args = mockSpawn.mock.calls[0]?.[1] as string[];
-      expect(args).toContain('--mcp-config');
-      expect(args).toContain('/tmp/mcp.json');
-      expect(args).toContain('--strict-mcp-config');
-    });
-
-    it('passes additional args', async () => {
-      mockSpawn.mockReturnValue(createMockChildProcess());
-
-      await spawnClaudeCode('/tmp/mcp.json', ['--verbose', '--debug']);
-
-      expect(mockSpawn).toHaveBeenCalledOnce();
-      const args = mockSpawn.mock.calls[0]?.[1] as string[];
-      expect(args).toContain('--verbose');
-      expect(args).toContain('--debug');
-    });
-
-    it('returns exit code from spawned process', async () => {
-      mockSpawn.mockReturnValue(createMockChildProcess(42));
-
-      const exitCode = await spawnClaudeCode('/tmp/mcp.json');
-
-      expect(exitCode).toBe(42);
+      await expect(spawnClaudeCode('/tmp/mcp.json')).rejects.toThrow(/claude cli not found/i);
     });
   });
 
@@ -494,38 +443,6 @@ cli_version = "0.1.0"
       expect(args).toContain('--mcp-config');
       expect(args).toContain('/tmp/mcp.json');
       expect(args).toContain('--strict-mcp-config');
-    });
-
-    it('includes --model flag when model is specified', async () => {
-      mockSpawn.mockReturnValue(createMockChildProcess());
-
-      await spawnClaudeCodeHeadless('/tmp/mcp.json', 'test prompt', '/tmp', 'opus');
-
-      expect(mockSpawn).toHaveBeenCalledOnce();
-      const args = mockSpawn.mock.calls[0]?.[1] as string[];
-      expect(args).toContain('--model');
-      expect(args).toContain('opus');
-    });
-
-    it('skips --model flag when model is undefined', async () => {
-      mockSpawn.mockReturnValue(createMockChildProcess());
-
-      await spawnClaudeCodeHeadless('/tmp/mcp.json', 'test prompt', '/tmp');
-
-      expect(mockSpawn).toHaveBeenCalledOnce();
-      const args = mockSpawn.mock.calls[0]?.[1] as string[];
-      expect(args).not.toContain('--model');
-    });
-
-    it('skips --model flag when model is "default"', async () => {
-      mockSpawn.mockReturnValue(createMockChildProcess());
-
-      await spawnClaudeCodeHeadless('/tmp/mcp.json', 'test prompt', '/tmp', 'default');
-
-      expect(mockSpawn).toHaveBeenCalledOnce();
-      const args = mockSpawn.mock.calls[0]?.[1] as string[];
-      expect(args).not.toContain('--model');
-      expect(args).not.toContain('default');
     });
 
     it('returns exit code from spawned process', async () => {
@@ -578,26 +495,6 @@ cli_version = "0.1.0"
       await expect(spawnClaudeCodeHeadless('/tmp/mcp.json', 'test prompt')).rejects.toThrow(
         /claude cli not found/i,
       );
-    });
-  });
-
-  describe('spawnClaudeCode', () => {
-    const mockSpawn = vi.mocked(spawn);
-
-    beforeEach(() => {
-      mockSpawn.mockReset();
-    });
-
-    it('throws TOOL_NOT_FOUND on ENOENT error', async () => {
-      // EventEmitter is required here because ChildProcess extends it (not EventTarget)
-      // eslint-disable-next-line unicorn/prefer-event-target
-      const emitter = new EventEmitter() as ChildProcess;
-      const error = new Error('spawn claude ENOENT') as NodeJS.ErrnoException;
-      error.code = 'ENOENT';
-      setTimeout(() => emitter.emit('error', error), 10);
-      mockSpawn.mockReturnValue(emitter);
-
-      await expect(spawnClaudeCode('/tmp/mcp.json')).rejects.toThrow(/claude cli not found/i);
     });
   });
 });

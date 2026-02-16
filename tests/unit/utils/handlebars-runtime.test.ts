@@ -173,24 +173,14 @@ describe('handlebars-runtime helpers', () => {
   });
 
   describe('includes helper', () => {
-    it('returns true when value is in space-separated list', () => {
+    it.each([
+      { value: 'Next.js', position: 'first' },
+      { value: 'React', position: 'middle' },
+      { value: 'Vue', position: 'last' },
+    ])('returns true when value ($value) is $position in list', ({ value }) => {
       const template =
         "{{#if (includes framework 'Next.js React Vue')}}found{{else}}not found{{/if}}";
-      const result = interpolate(template, { framework: 'Next.js' });
-      expect(result).toBe('found');
-    });
-
-    it('returns true when value is in middle of list', () => {
-      const template =
-        "{{#if (includes framework 'Next.js React Vue')}}found{{else}}not found{{/if}}";
-      const result = interpolate(template, { framework: 'React' });
-      expect(result).toBe('found');
-    });
-
-    it('returns true when value is last in list', () => {
-      const template =
-        "{{#if (includes framework 'Next.js React Vue')}}found{{else}}not found{{/if}}";
-      const result = interpolate(template, { framework: 'Vue' });
+      const result = interpolate(template, { framework: value });
       expect(result).toBe('found');
     });
 
@@ -326,15 +316,9 @@ describe('handlebars-runtime helpers', () => {
       expect(result).toBe('not found');
     });
 
-    it('works with eq helper', () => {
+    it.each(['A', 'B'])('matches when type is %s via eq helper', (type) => {
       const template = "{{#if (or (eq type 'A') (eq type 'B'))}}matches{{else}}no match{{/if}}";
-      const result = interpolate(template, { type: 'A' });
-      expect(result).toBe('matches');
-    });
-
-    it('works with multiple conditions', () => {
-      const template = "{{#if (or (eq type 'A') (eq type 'B'))}}matches{{else}}no match{{/if}}";
-      const result = interpolate(template, { type: 'B' });
+      const result = interpolate(template, { type });
       expect(result).toBe('matches');
     });
 

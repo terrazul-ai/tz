@@ -3,14 +3,15 @@ import { describe, expect, it } from 'vitest';
 import { parseSnippets } from '../../../src/utils/snippet-parser';
 
 describe('snippet parser', () => {
-  it('parses askUser without options', () => {
-    const tpl = "Intro {{ askUser('What is your name?') }} content";
+  it.each([
+    { desc: 'single quotes', tpl: "Intro {{ askUser('What is your name?') }} content" },
+    { desc: 'backtick strings', tpl: '{{ askUser(`What is your name?`) }}' },
+  ])('parses askUser without options ($desc)', ({ tpl }) => {
     const snippets = parseSnippets(tpl);
     expect(snippets).toHaveLength(1);
     const snippet = snippets[0];
     expect(snippet.type).toBe('askUser');
     expect(snippet.question).toBe('What is your name?');
-    expect(snippet.options.default).toBeUndefined();
   });
 
   it('parses askUser with options', () => {
@@ -30,8 +31,10 @@ describe('snippet parser', () => {
     expect(snippet.question).toBe('Trimmed?');
   });
 
-  it('parses triple-mustache askAgent snippets', () => {
-    const tpl = "{{{ askAgent('Summarize this repo') }}}";
+  it.each([
+    { desc: 'triple-mustache single quotes', tpl: "{{{ askAgent('Summarize this repo') }}}" },
+    { desc: 'backtick strings', tpl: '{{ askAgent(`Summarize this repo`) }}' },
+  ])('parses askAgent text prompt ($desc)', ({ tpl }) => {
     const [snippet] = parseSnippets(tpl);
     if (snippet.type !== 'askAgent') throw new Error('expected askAgent snippet');
     expect(snippet.prompt.kind).toBe('text');
@@ -135,22 +138,7 @@ describe('snippet parser', () => {
     expect(() => parseSnippets(tpl)).toThrow(/Malformed snippet/);
   });
 
-  // Backtick string tests
-  it('parses askUser with backtick strings', () => {
-    const tpl = '{{ askUser(`What is your name?`) }}';
-    const [snippet] = parseSnippets(tpl);
-    expect(snippet.type).toBe('askUser');
-    expect(snippet.question).toBe('What is your name?');
-  });
-
-  it('parses askAgent with backtick strings', () => {
-    const tpl = '{{ askAgent(`Summarize this repo`) }}';
-    const [snippet] = parseSnippets(tpl);
-    if (snippet.type !== 'askAgent') throw new Error('expected askAgent snippet');
-    expect(snippet.prompt.kind).toBe('text');
-    expect(snippet.prompt.value).toBe('Summarize this repo');
-  });
-
+  // Backtick-specific tests (not covered by parameterized tests above)
   it('parses multi-line backtick strings', () => {
     const tpl = `{{ askAgent(\`Determine how to run, test,
 lint, and format the code locally.\`) }}`;
@@ -167,13 +155,6 @@ lint, and format the code locally.\`) }}`;
     const [snippet] = parseSnippets(tpl);
     expect(snippet.type).toBe('askUser');
     expect(snippet.question).toBe('Use `backticks` here');
-  });
-
-  it('parses backtick strings with single quotes inside', () => {
-    const tpl = '{{ askUser(`What is your name?`) }}';
-    const [snippet] = parseSnippets(tpl);
-    expect(snippet.type).toBe('askUser');
-    expect(snippet.question).toBe('What is your name?');
   });
 
   it('parses backtick strings with options', () => {

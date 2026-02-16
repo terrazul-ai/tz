@@ -373,35 +373,5 @@ describe('template-renderer helpers', () => {
       expect(result.toolSafeMode).toBe(false);
     });
 
-    it.skip('should use custom file paths from config', async () => {
-      // Create custom config
-      const configDir = path.join(fakeHome, '.terrazul');
-      const configPath = path.join(configDir, 'config.json');
-      await fs.mkdir(configDir, { recursive: true });
-      await write(
-        configPath,
-        JSON.stringify({
-          registry: 'https://test.api.terrazul.com',
-          context: {
-            files: {
-              claude: 'CUSTOM_CLAUDE.md',
-              codex: 'CUSTOM_AGENTS.md',
-            },
-          },
-        }),
-      );
-
-      // Ensure file is written
-      const fd = await fs.open(configPath, 'r');
-      await fd.sync();
-      await fd.close();
-
-      const result = await setupRenderConfiguration(tmpRoot, {});
-
-      expect(result.filesMap.claude).toBe('CUSTOM_CLAUDE.md');
-      expect(result.filesMap.codex).toBe('CUSTOM_AGENTS.md');
-      // Other tools should still have defaults
-      expect(result.filesMap.cursor).toBe('.cursor/rules.mdc');
-    });
   });
 });
