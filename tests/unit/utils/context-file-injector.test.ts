@@ -177,6 +177,93 @@ describe('utils/context-file-injector', () => {
       expect(exists).toBe(false);
     });
 
+    it('does not overwrite previous packages when injecting a subset', async () => {
+      const filePath = path.join(projectRoot, 'CLAUDE.md');
+
+      // First: inject both packages (simulating initial install state)
+      const allPackageFiles = new Map([
+        ['@test/pkg1', [path.join(projectRoot, 'agent_modules/@test/pkg1/CLAUDE.md')]],
+        ['@test/pkg2', [path.join(projectRoot, 'agent_modules/@test/pkg2/CLAUDE.md')]],
+      ]);
+      const allPackages: PackageInfo[] = [
+        {
+          name: '@test/pkg1',
+          version: '1.0.0',
+          root: path.join(projectRoot, 'agent_modules/@test/pkg1'),
+        },
+        {
+          name: '@test/pkg2',
+          version: '1.0.0',
+          root: path.join(projectRoot, 'agent_modules/@test/pkg2'),
+        },
+      ];
+
+      await injectPackageContext(filePath, projectRoot, allPackageFiles, allPackages);
+      const contentAfterBoth = await fs.readFile(filePath, 'utf8');
+      expect(contentAfterBoth).toContain('@agent_modules/@test/pkg1/CLAUDE.md');
+      expect(contentAfterBoth).toContain('@agent_modules/@test/pkg2/CLAUDE.md');
+
+      // Second: re-inject with ALL packages again (the fix — commands should
+      // always pass the full set, not just the newly-added package)
+      const result = await injectPackageContext(
+        filePath,
+        projectRoot,
+        allPackageFiles,
+        allPackages,
+      );
+
+      // Should be idempotent — no changes
+      expect(result.modified).toBe(false);
+
+      const finalContent = await fs.readFile(filePath, 'utf8');
+      expect(finalContent).toContain('@agent_modules/@test/pkg1/CLAUDE.md');
+      expect(finalContent).toContain('@agent_modules/@test/pkg2/CLAUDE.md');
+    });
+
+    it('overwrites previous packages when injecting only a subset (the bug scenario)', async () => {
+      const filePath = path.join(projectRoot, 'CLAUDE.md');
+
+      // First: inject both packages
+      const allPackageFiles = new Map([
+        ['@test/pkg1', [path.join(projectRoot, 'agent_modules/@test/pkg1/CLAUDE.md')]],
+        ['@test/pkg2', [path.join(projectRoot, 'agent_modules/@test/pkg2/CLAUDE.md')]],
+      ]);
+      const allPackages: PackageInfo[] = [
+        {
+          name: '@test/pkg1',
+          version: '1.0.0',
+          root: path.join(projectRoot, 'agent_modules/@test/pkg1'),
+        },
+        {
+          name: '@test/pkg2',
+          version: '1.0.0',
+          root: path.join(projectRoot, 'agent_modules/@test/pkg2'),
+        },
+      ];
+
+      await injectPackageContext(filePath, projectRoot, allPackageFiles, allPackages);
+
+      // Second: inject only pkg2 (simulates what the old buggy code did)
+      const subsetFiles = new Map([
+        ['@test/pkg2', [path.join(projectRoot, 'agent_modules/@test/pkg2/CLAUDE.md')]],
+      ]);
+      const subsetPackages: PackageInfo[] = [
+        {
+          name: '@test/pkg2',
+          version: '1.0.0',
+          root: path.join(projectRoot, 'agent_modules/@test/pkg2'),
+        },
+      ];
+
+      await injectPackageContext(filePath, projectRoot, subsetFiles, subsetPackages);
+
+      const content = await fs.readFile(filePath, 'utf8');
+      // With a subset, pkg1 is lost — this demonstrates the bug that the
+      // command-level fix prevents by always passing the full set
+      expect(content).not.toContain('@agent_modules/@test/pkg1/CLAUDE.md');
+      expect(content).toContain('@agent_modules/@test/pkg2/CLAUDE.md');
+    });
+
     it('handles multiple packages sorted alphabetically', async () => {
       const filePath = path.join(projectRoot, 'CLAUDE.md');
       const packageFiles = new Map([
