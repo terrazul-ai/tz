@@ -1,5 +1,7 @@
 import path from 'node:path';
 
+import { valid as isExactSemver } from 'semver';
+
 import { createSnippetEventHandler } from './add-event-handlers.js';
 import {
   validatePackageVersion,
@@ -15,6 +17,7 @@ import { TerrazulError } from '../core/errors.js';
 import { LockfileManager } from '../core/lock-file.js';
 import { PackageManager } from '../core/package-manager.js';
 import { createSpinnerManager } from '../ui/apply/spinner-manager.js';
+import { addOrUpdateDependency } from '../utils/manifest.js';
 import { parsePackageSpec } from '../utils/package-spec.js';
 
 import type { CLIContext } from '../utils/context.js';
@@ -38,7 +41,7 @@ export function registerAddCommand(
 
       const parsed = parsePackageSpec(_spec);
       if (!parsed) {
-        ctx.logger.error('Please provide a spec like @scope/name@1.0.0');
+        ctx.logger.error('Please provide a package spec like @scope/name or @scope/name@1.0.0');
         process.exitCode = 1;
         return;
       }
@@ -65,6 +68,17 @@ export function registerAddCommand(
         );
 
         updateAndWriteLockfile(existingLock, updates, projectDir);
+
+        // Record dependency in agents.toml using a caret range
+        let manifestRange = parsed.range;
+        if (manifestRange === '*') {
+          const resolvedVersion = resolved.get(parsed.name)?.version;
+          if (resolvedVersion) manifestRange = `^${resolvedVersion}`;
+        } else if (isExactSemver(manifestRange)) {
+          manifestRange = `^${manifestRange}`;
+        }
+        await addOrUpdateDependency(projectDir, parsed.name, manifestRange);
+
         ctx.logger.info('Add complete');
 
         await handleProfileUpdate(projectDir, profileName, parsed.name, ctx.logger);

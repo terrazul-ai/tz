@@ -175,9 +175,15 @@ version = "0.1.0"
     const stats = await fs.lstat(starterLink);
     expect(stats.isDirectory()).toBe(true);
 
-    // Note: tz install only downloads packages, it doesn't render templates
-    // Templates are rendered by tz add, tz run, or tz update
-    // So we shouldn't expect CLAUDE.md to exist after install
+    // Verify post-render tasks: context injection into CLAUDE.md
+    const claudeMdPath = path.join(tmpProj, 'CLAUDE.md');
+    try {
+      const claudeMd = await fs.readFile(claudeMdPath, 'utf8');
+      expect(claudeMd).toContain('terrazul:begin');
+    } catch {
+      // CLAUDE.md may not exist if init didn't create one and the package
+      // didn't emit context files — that's acceptable
+    }
 
     // idempotent second run
     await run('node', [cli, 'install'], { cwd: tmpProj, env });

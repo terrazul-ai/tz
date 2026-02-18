@@ -17,11 +17,25 @@ export interface ParsedPackageSpec {
 export function parsePackageSpec(spec?: string): ParsedPackageSpec | null {
   if (!spec) return null;
 
+  // Try matching with explicit version first: @scope/name@version or name@version
   const scopedMatch = spec.match(/^(@[^@]+?)@([^@]+)$/);
   const unscopedMatch = spec.match(/^([^@]+)@([^@]+)$/);
   const match = scopedMatch || unscopedMatch;
 
-  if (!match) return null;
+  if (match) {
+    return { name: match[1], range: match[2] };
+  }
 
-  return { name: match[1], range: match[2] };
+  // Fallback: name without version — scoped (@scope/name) or unscoped (name)
+  const scopedNameOnly = spec.match(/^@[^/]+\/[^/@]+$/);
+  if (scopedNameOnly) {
+    return { name: spec, range: '*' };
+  }
+
+  const unscopedNameOnly = spec.match(/^[\dA-Za-z][\w.-]*$/);
+  if (unscopedNameOnly) {
+    return { name: spec, range: '*' };
+  }
+
+  return null;
 }

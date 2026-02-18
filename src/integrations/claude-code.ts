@@ -116,10 +116,10 @@ export async function aggregateMCPConfigs(
 
       for (const [serverName, serverConfig] of Object.entries(config.mcpServers)) {
         if (aggregated.mcpServers[serverName]) {
-          throw new TerrazulError(
-            ErrorCode.CONFIG_INVALID,
-            `Duplicate MCP server name '${serverName}' found in package ${pkgName}`,
+          ctx?.logger.warn(
+            `Duplicate MCP server '${serverName}' in package ${pkgName} (skipped; using earlier definition)`,
           );
+          continue;
         }
         aggregated.mcpServers[serverName] = serverConfig;
       }
