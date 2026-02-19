@@ -110,6 +110,11 @@ describe('stage_release.py CLI usage', () => {
     expect(stagedPackage.engines?.node).toBe('>=20.0.0');
     expect(stagedPackage.files).toContain('dist');
 
+    expect(stagedPackage.dependencies).toEqual({});
+    expect(stagedPackage.devDependencies).toBeUndefined();
+    const rawJson = fs.readFileSync(packageJsonPath, 'utf8');
+    expect(rawJson).not.toContain('workspace:');
+
     const launcherPath = path.join(stagingRoot, 'package', 'bin', 'app.mjs');
     expect(fs.existsSync(launcherPath)).toBe(true);
   });
