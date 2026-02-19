@@ -5,6 +5,7 @@ import { LockfileManager } from '../core/lock-file.js';
 import { PackageManager } from '../core/package-manager.js';
 import { planAndRender } from '../core/template-renderer.js';
 import { loadProjectConfig } from '../utils/config.js';
+import { collectPackageFilesFromAgentModules } from '../utils/package-collection.js';
 import { executePostRenderTasks } from '../utils/post-render-tasks.js';
 
 import type { RenderedFileMetadata } from '../core/template-renderer.js';
@@ -60,7 +61,6 @@ export function registerInstallCommand(
         const applyEnabled = raw['apply'] !== false;
         if (applyEnabled) {
           const agentModulesRoot = path.join(projectDir, 'agent_modules');
-          const allPackageFiles = new Map<string, string[]>();
           const allRenderedFiles: RenderedFileMetadata[] = [];
 
           for (const entry of result.summary) {
@@ -76,16 +76,23 @@ export function registerInstallCommand(
             for (const backup of res.backedUp) {
               ctx.logger.info(`apply: backup created at ${backup}`);
             }
-
-            if (res.packageFiles) {
-              for (const [pkgName, files] of res.packageFiles) {
-                allPackageFiles.set(pkgName, files);
-              }
-            }
             allRenderedFiles.push(...res.renderedFiles);
           }
 
-          await executePostRenderTasks(projectDir, allPackageFiles, ctx.logger, allRenderedFiles);
+          // Collect ALL installed packages (not just newly-rendered) to avoid
+          // overwriting previously-injected @-mentions in CLAUDE.md/AGENTS.md
+          const { packageFiles, packageInfos } =
+            await collectPackageFilesFromAgentModules(projectDir);
+
+          if (packageFiles.size > 0) {
+            await executePostRenderTasks(
+              projectDir,
+              packageFiles,
+              ctx.logger,
+              allRenderedFiles,
+              packageInfos,
+            );
+          }
         } else {
           ctx.logger.info('Skipping apply (--no-apply)');
         }
