@@ -201,17 +201,21 @@ export async function renderPackageTemplates(
 
 /**
  * Execute post-render tasks (inject @-mentions and create symlinks).
+ * Collects ALL installed packages (not just newly-added) to avoid overwriting
+ * previously-injected @-mentions in CLAUDE.md/AGENTS.md.
  */
 export async function executePostRenderTasks(
   projectDir: string,
-  allPackageFiles: Map<string, string[]>,
+  _allPackageFiles: Map<string, string[]>,
   allRenderedFiles: RenderedFileMetadata[],
   logger: Logger,
 ): Promise<void> {
-  if (allPackageFiles.size === 0) {
-    return;
-  }
+  // Collect ALL installed packages (not just newly-added)
+  const { collectPackageFilesFromAgentModules } = await import('../utils/package-collection.js');
+  const { packageFiles, packageInfos } = await collectPackageFilesFromAgentModules(projectDir);
+
+  if (packageFiles.size === 0) return;
 
   const { executePostRenderTasks } = await import('../utils/post-render-tasks.js');
-  await executePostRenderTasks(projectDir, allPackageFiles, logger, allRenderedFiles);
+  await executePostRenderTasks(projectDir, packageFiles, logger, allRenderedFiles, packageInfos);
 }

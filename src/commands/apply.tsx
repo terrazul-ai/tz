@@ -197,22 +197,21 @@ export function registerApplyCommand(
 
           // Inject @-mentions and create symlinks (unless dry-run)
           if (!opts.dryRun && res.packageFiles) {
-            // Debug: log packageFiles
-            ctx.logger.info(`[DEBUG] packageFiles size: ${res.packageFiles.size}`);
-            for (const [pkg, files] of res.packageFiles) {
-              ctx.logger.info(`[DEBUG]   ${pkg}: ${files.length} files`);
-            }
+            // Collect ALL installed packages (not just the rendered subset) to avoid
+            // overwriting previously-injected @-mentions in CLAUDE.md/AGENTS.md
+            const { collectPackageFilesFromAgentModules } = await import(
+              '../utils/package-collection.js'
+            );
+            const { packageFiles, packageInfos } =
+              await collectPackageFilesFromAgentModules(projectRoot);
 
             const { executePostRenderTasks } = await import('../utils/post-render-tasks.js');
             await executePostRenderTasks(
               projectRoot,
-              res.packageFiles,
+              packageFiles,
               ctx.logger,
               res.renderedFiles,
-            );
-          } else {
-            ctx.logger.info(
-              `[DEBUG] Not calling executePostRenderTasks: dryRun=${opts.dryRun}, packageFiles=${res.packageFiles ? 'exists' : 'undefined'}`,
+              packageInfos,
             );
           }
 

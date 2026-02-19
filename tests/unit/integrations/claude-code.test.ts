@@ -15,6 +15,7 @@ import {
   spawnClaudeCodeHeadless,
 } from '../../../src/integrations/claude-code.js';
 
+import type { CLIContext } from '../../../src/utils/context.js';
 import type { ChildProcess } from 'node:child_process';
 
 vi.mock('node:child_process', async (importOriginal) => {
@@ -212,7 +213,7 @@ cli_version = "0.1.0"
       expect(config).toEqual({ mcpServers: {} });
     });
 
-    it('throws error on duplicate MCP server names', async () => {
+    it('deduplicates MCP servers: first definition wins and warns', async () => {
       // Create store structure with duplicate MCP server names
       const storeRoot = path.join(fakeHomeDir, '.terrazul', 'store');
       const pkg1StoreDir = path.join(storeRoot, '@test', 'pkg1', '1.0.0');
@@ -264,9 +265,26 @@ cli_version = "0.1.0"
 `;
       await fs.writeFile(path.join(tmpDir, 'agents-lock.toml'), lockfile.trim());
 
-      await expect(
-        aggregateMCPConfigs(tmpDir, ['@test/pkg1', '@test/pkg2'], { storeDir: storeRoot }),
-      ).rejects.toThrow(/duplicate.*mcp server/i);
+      // Mock logger to capture warnings
+      const warnings: string[] = [];
+      const mockLogger = {
+        warn: (msg: string) => warnings.push(msg),
+        info: vi.fn(),
+        error: vi.fn(),
+        debug: vi.fn(),
+        isVerbose: () => false,
+      };
+      const mockCtx = { logger: mockLogger } as unknown as CLIContext;
+
+      const config = await aggregateMCPConfigs(tmpDir, ['@test/pkg1', '@test/pkg2'], {
+        storeDir: storeRoot,
+        ctx: mockCtx,
+      });
+
+      // First definition wins
+      expect(config.mcpServers['duplicate'].args).toEqual(['server1.js']);
+      // Warning was emitted for the duplicate
+      expect(warnings.some((w) => w.includes('duplicate') && w.includes('@test/pkg2'))).toBe(true);
     });
 
     it('handles malformed MCP config gracefully', async () => {

@@ -29,7 +29,7 @@ import { createSymlinks } from '../integrations/symlink-manager.js';
 import { loadMCPConfig, spawnTool } from '../integrations/tool-spawner.js';
 import { AskAgentSpinner, type AskAgentTask } from '../ui/apply/AskAgentSpinner.js';
 import { generateAskAgentSummary } from '../utils/ask-agent-summary.js';
-import { injectPackageContext, type PackageInfo } from '../utils/context-file-injector.js';
+import { injectPackageContext } from '../utils/context-file-injector.js';
 import { ensureDir } from '../utils/fs.js';
 import { addOrUpdateDependency, readManifest } from '../utils/manifest.js';
 import { agentModulesPath, isFilesystemPath, resolvePathSpec } from '../utils/path.js';
@@ -424,44 +424,24 @@ async function handleContextInjection(
     return;
   }
 
-  // Build PackageInfo array from packageFiles
-  const packageInfos: PackageInfo[] = [];
-  for (const [pkgName, files] of renderResult.packageFiles) {
-    if (files.length > 0) {
-      const pkgRoot = agentModulesPath(projectRoot, pkgName);
-      const manifest = await readManifest(pkgRoot);
-      packageInfos.push({
-        name: pkgName,
-        version: manifest?.package?.version,
-        root: pkgRoot,
-      });
-    }
-  }
+  // Collect ALL installed packages (not just the rendered subset) to avoid
+  // overwriting previously-injected @-mentions in CLAUDE.md/AGENTS.md
+  const { collectPackageFilesFromAgentModules } = await import('../utils/package-collection.js');
+  const { packageFiles, packageInfos } = await collectPackageFilesFromAgentModules(projectRoot);
+
+  if (packageFiles.size === 0) return;
 
   // Inject into CLAUDE.md
   const claudeMd = path.join(projectRoot, 'CLAUDE.md');
   const claudeResult = await injectPackageContext(
     claudeMd,
     projectRoot,
-    renderResult.packageFiles,
+    packageFiles,
     packageInfos,
   );
 
   if (claudeResult.modified) {
     ctx.logger.info('Injected package context into CLAUDE.md');
-    if (ctx.logger.isVerbose() && claudeResult.content) {
-      const lines = claudeResult.content.split('\n');
-      const beginIdx = lines.findIndex((l) => l.includes('terrazul:begin'));
-      if (beginIdx >= 0) {
-        const endIdx = lines.findIndex((l) => l.includes('terrazul:end'));
-        if (endIdx > beginIdx) {
-          ctx.logger.debug('  Injected content:');
-          for (let i = beginIdx; i <= endIdx && i < beginIdx + 10; i++) {
-            ctx.logger.debug(`    ${lines[i]}`);
-          }
-        }
-      }
-    }
   }
 
   // Inject into AGENTS.md
@@ -469,38 +449,12 @@ async function handleContextInjection(
   const agentsResult = await injectPackageContext(
     agentsMd,
     projectRoot,
-    renderResult.packageFiles,
+    packageFiles,
     packageInfos,
   );
 
   if (agentsResult.modified) {
     ctx.logger.info('Injected package context into AGENTS.md');
-    if (ctx.logger.isVerbose() && agentsResult.content) {
-      const lines = agentsResult.content.split('\n');
-      const beginIdx = lines.findIndex((l) => l.includes('terrazul:begin'));
-      if (beginIdx >= 0) {
-        const endIdx = lines.findIndex((l) => l.includes('terrazul:end'));
-        if (endIdx > beginIdx) {
-          ctx.logger.debug('  Injected content:');
-          for (let i = beginIdx; i <= endIdx && i < beginIdx + 10; i++) {
-            ctx.logger.debug(`    ${lines[i]}`);
-          }
-        }
-      }
-    }
-  }
-
-  // Log @-mentions in verbose mode
-  if (ctx.logger.isVerbose()) {
-    for (const [pkgName, files] of renderResult.packageFiles) {
-      if (files.length > 0) {
-        ctx.logger.debug(`  ${pkgName}: ${files.length} file(s) rendered`);
-        for (const file of files) {
-          const relPath = path.relative(projectRoot, file);
-          ctx.logger.debug(`    ${relPath}`);
-        }
-      }
-    }
   }
 }
 

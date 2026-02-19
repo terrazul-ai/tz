@@ -5,7 +5,10 @@ import { LockfileManager } from '../core/lock-file.js';
 import { PackageManager } from '../core/package-manager.js';
 import { planAndRender } from '../core/template-renderer.js';
 import { loadProjectConfig } from '../utils/config.js';
+import { collectPackageFilesFromAgentModules } from '../utils/package-collection.js';
+import { executePostRenderTasks } from '../utils/post-render-tasks.js';
 
+import type { RenderedFileMetadata } from '../core/template-renderer.js';
 import type { CLIContext } from '../utils/context.js';
 import type { Command } from 'commander';
 
@@ -58,6 +61,8 @@ export function registerInstallCommand(
         const applyEnabled = raw['apply'] !== false;
         if (applyEnabled) {
           const agentModulesRoot = path.join(projectDir, 'agent_modules');
+          const allRenderedFiles: RenderedFileMetadata[] = [];
+
           for (const entry of result.summary) {
             const res = await planAndRender(projectDir, agentModulesRoot, {
               packageName: entry.name,
@@ -71,6 +76,22 @@ export function registerInstallCommand(
             for (const backup of res.backedUp) {
               ctx.logger.info(`apply: backup created at ${backup}`);
             }
+            allRenderedFiles.push(...res.renderedFiles);
+          }
+
+          // Collect ALL installed packages (not just newly-rendered) to avoid
+          // overwriting previously-injected @-mentions in CLAUDE.md/AGENTS.md
+          const { packageFiles, packageInfos } =
+            await collectPackageFilesFromAgentModules(projectDir);
+
+          if (packageFiles.size > 0) {
+            await executePostRenderTasks(
+              projectDir,
+              packageFiles,
+              ctx.logger,
+              allRenderedFiles,
+              packageInfos,
+            );
           }
         } else {
           ctx.logger.info('Skipping apply (--no-apply)');
