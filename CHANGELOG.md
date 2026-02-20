@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.22.2](https://github.com/terrazul-ai/tz/compare/v0.22.1...v0.22.2) (2026-02-20)
+
+
+### Bug Fixes
+
+* **ci:** fix failing release workflows for package-core and SEA builds ([#104](https://github.com/terrazul-ai/tz/issues/104)) ([7e20e3b](https://github.com/terrazul-ai/tz/commit/7e20e3ba41bad42dcfddaf506cb19857b55f88ea))
+* **commands:** make add, install, and run consistent with context injection ([#102](https://github.com/terrazul-ai/tz/issues/102)) ([f61fb15](https://github.com/terrazul-ai/tz/commit/f61fb1558ceeede12104b528bc3fe82dbf9a3272))
+
 ## [0.22.1](https://github.com/terrazul-ai/tz/compare/v0.22.0...v0.22.1) (2026-02-16)
 
 

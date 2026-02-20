@@ -1,6 +1,6 @@
 {
   "name": "@terrazul/tz",
-  "version": "0.22.1",
+  "version": "0.22.2",
   "description": "Terrazul CLI (tz): package manager for AI agent configuration bundles",
   "license": "Apache-2.0",
   "repository": {
