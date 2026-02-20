@@ -1,6 +1,6 @@
 {
   "name": "@terrazul/package-core",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "Shared package parsing utilities for Terrazul CLI and Desktop",
   "license": "Apache-2.0",
   "type": "module",

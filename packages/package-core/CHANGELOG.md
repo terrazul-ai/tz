@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.2](https://github.com/terrazul-ai/tz/compare/package-core-v0.2.1...package-core-v0.2.2) (2026-02-20)
+
+
+### Bug Fixes
+
+* **ci:** fix failing release workflows for package-core and SEA builds ([#104](https://github.com/terrazul-ai/tz/issues/104)) ([7e20e3b](https://github.com/terrazul-ai/tz/commit/7e20e3ba41bad42dcfddaf506cb19857b55f88ea))
+
 ## [0.2.1](https://github.com/terrazul-ai/tz/compare/package-core-v0.2.0...package-core-v0.2.1) (2026-02-16)
 
 
