@@ -14,9 +14,22 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Release Please (manifest)
+        id: release
         uses: googleapis/release-please-action@v4
         with:
           token: ${{ secrets.RELEASE_PLEASE_TOKEN }}
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
           target-branch: ${{ github.ref_name }}
+
+      - name: Verify release created for release PR merges
+        if: "startsWith(github.event.head_commit.message, 'chore: release main')"
+        env:
+          RELEASES_CREATED: ${{ steps.release.outputs.releases_created }}
+        run: |
+          echo "Detected release PR merge (commit message: '${{ github.event.head_commit.message }}')"
+          echo "releases_created=$RELEASES_CREATED"
+          if [ "$RELEASES_CREATED" != "true" ]; then
+            echo "::error::Release PR was merged but no GitHub releases were created. This usually means release-please could not match the PR title to a configured component. Check the release-please logs above for 'PR component' warnings."
+            exit 1
+          fi
