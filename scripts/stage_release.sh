@@ -79,7 +79,9 @@ jq \
    .bin = {tz: "bin/app.mjs"} |
    .files = ["bin", "dist", "README.md"] |
    .engines.node = ">=20.0.0" |
-   .type = "module"' \
+   .type = "module" |
+   .dependencies = {} |
+   del(.devDependencies)' \
   "$repo_root/package.json" > "$package_root/package.json"
 
 echo "Staged package at $package_root"
