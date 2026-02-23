@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.22.3](https://github.com/terrazul-ai/tz/compare/v0.22.2...v0.22.3) (2026-02-23)
+
+
+### Bug Fixes
+
+* **release:** strip bundled dependencies from published package.json ([#105](https://github.com/terrazul-ai/tz/issues/105)) ([9c357f4](https://github.com/terrazul-ai/tz/commit/9c357f42cb8b068c8125b503b99b3cd65ab56d10))
+
 ## [0.22.2](https://github.com/terrazul-ai/tz/compare/v0.22.1...v0.22.2) (2026-02-20)
 
 
