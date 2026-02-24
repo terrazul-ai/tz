@@ -209,4 +209,88 @@ cli_version = "0.1.0"
     expect(afterCache.packages['@other/package'].snippets[0].id).toBe('other_snippet_1');
     expect(afterCache.packages['@other/package'].snippets[0].value).toBe('Some answer');
   });
+
+  it('uses cached snippet values on re-render after rendered files are deleted', async () => {
+    const cacheFilePath = path.join(projectRoot, 'test-rerender-cache.toml');
+
+    // First render: populates the cache (with force to ensure rendering)
+    await planAndRender(projectRoot, agentModules, {
+      force: true,
+      packageName: '@test/demo',
+      tool: 'claude',
+      cacheFilePath,
+      storeDir: storeRoot,
+    });
+
+    // Verify first render executed snippets
+    expect(promptMock).toHaveBeenCalledTimes(1);
+    expect(invokeToolMock).toHaveBeenCalledTimes(1);
+
+    // Delete the rendered output file to force re-render
+    const outputPath = path.join(agentModules, '@test', 'demo', 'AGENTS.md');
+    await fs.rm(outputPath, { force: true });
+
+    // Reset mocks to track second render
+    vi.clearAllMocks();
+    promptMock.mockResolvedValue({ value: 'Should not be called' });
+    invokeToolMock.mockResolvedValue({
+      command: 'claude',
+      args: [],
+      stdout: '{"result":"Should not be called"}',
+      stderr: '',
+    });
+
+    // Second render: should use cached values (no prompts or tool invocations)
+    const res = await planAndRender(projectRoot, agentModules, {
+      force: true,
+      packageName: '@test/demo',
+      tool: 'claude',
+      cacheFilePath,
+      storeDir: storeRoot,
+    });
+
+    expect(res.written).toHaveLength(1);
+    const contents = await fs.readFile(res.written[0], 'utf8');
+    // Should contain the values from the FIRST render (cached), not the mock overrides
+    expect(contents).toContain('User: Alice');
+    expect(contents).toContain('Summary: All good');
+    // No new prompts or tool invocations should have fired
+    expect(promptMock).not.toHaveBeenCalled();
+    expect(invokeToolMock).not.toHaveBeenCalled();
+  });
+
+  it('persists earlier snippet cache writes when a later snippet fails', async () => {
+    const cacheFilePath = path.join(projectRoot, 'test-partial-cache.toml');
+
+    // Make askAgent (second pass) fail, but askUser (first pass) should succeed
+    invokeToolMock.mockRejectedValueOnce(new Error('agent timed out'));
+
+    await expect(
+      planAndRender(projectRoot, agentModules, {
+        force: true,
+        packageName: '@test/demo',
+        tool: 'claude',
+        cacheFilePath,
+        storeDir: storeRoot,
+      }),
+    ).rejects.toMatchObject({
+      code: ErrorCode.TOOL_EXECUTION_FAILED,
+      message: expect.stringContaining('agent timed out'),
+    });
+
+    // Verify the askUser cache entry was persisted despite the askAgent failure
+    const cacheManager = new SnippetCacheManager(cacheFilePath);
+    const cache = await cacheManager.read();
+    const pkgCache = cache.packages['@test/demo'];
+    expect(pkgCache).toBeDefined();
+    expect(pkgCache.version).toBe('1.0.0');
+    // Should have at least the askUser snippet cached
+    const askUserSnippets = pkgCache.snippets.filter((s: { type: string }) => s.type === 'askUser');
+    expect(askUserSnippets.length).toBeGreaterThanOrEqual(1);
+    // Should NOT have any askAgent snippets (since it failed)
+    const askAgentSnippets = pkgCache.snippets.filter(
+      (s: { type: string }) => s.type === 'askAgent',
+    );
+    expect(askAgentSnippets).toHaveLength(0);
+  });
 });

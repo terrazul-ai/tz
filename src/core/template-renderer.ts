@@ -582,7 +582,13 @@ export async function planAndRender(
   if (opts.noCache !== true) {
     const cacheFilePath = opts.cacheFilePath ?? path.join(projectRoot, 'agents-cache.toml');
     cacheManager = new SnippetCacheManager(cacheFilePath);
-    await cacheManager.read();
+    const cacheData = await cacheManager.read();
+    if (opts.verbose) {
+      const cachedPkgs = Object.keys(cacheData.packages);
+      console.log(
+        `[template-renderer] Snippet cache loaded: ${cachedPkgs.length} package(s) cached [${cachedPkgs.join(', ')}]`,
+      );
+    }
     // Note: Cache pruning is intentionally NOT done here to preserve entries
     // when switching between packages. Cache entries are only removed during
     // explicit `tz uninstall` to allow users to switch between packages
@@ -685,6 +691,11 @@ export async function planAndRender(
       }
 
       if (!opts.force && destStat?.isFile()) {
+        if (opts.verbose) {
+          console.log(
+            `[template-renderer] SKIP template (file exists, force=${opts.force ?? false}): ${dest}`,
+          );
+        }
         skipped.push(makeSkip(dest, 'exists'));
 
         // Still track skipped file metadata for symlink manager
@@ -740,6 +751,12 @@ export async function planAndRender(
         // Template file: render with Handlebars and snippets
         // Get package version from already-loaded manifest (m is read from p.storePath)
         const pkgVersion = m?.package?.version ?? '0.0.0';
+
+        if (opts.verbose) {
+          console.log(
+            `[template-renderer] RENDER template with snippets: ${item.abs} -> ${dest} (pkg=${p.name}@${pkgVersion}, force=${opts.force ?? false}, fileExists=${!!destStat})`,
+          );
+        }
 
         const renderResult = await renderTemplateWithSnippets(item.abs, ctx, {
           preprocess: {
