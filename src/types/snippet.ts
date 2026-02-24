@@ -95,7 +95,12 @@ export interface ExecuteSnippetsOptions {
 
 // Forward declaration to avoid circular dependency
 export interface SnippetCacheManager {
-  getSnippet(packageName: string, version: string, snippetId: string): CachedSnippet | null;
+  getSnippet(
+    packageName: string,
+    version: string,
+    snippetId: string,
+    diagnostics?: { missReason?: string },
+  ): CachedSnippet | null;
   setSnippet(packageName: string, version: string, snippet: CachedSnippet): Promise<void>;
 }
 
