@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.22.4](https://github.com/terrazul-ai/tz/compare/v0.22.3...v0.22.4) (2026-02-24)
+
+
+### Bug Fixes
+
+* add snippet cache debug logging and fix autoInstallPackage cache invalidation ([#108](https://github.com/terrazul-ai/tz/issues/108)) ([3bd123f](https://github.com/terrazul-ai/tz/commit/3bd123f46a34369b337a3af8274db2e0ccf67111))
+* **ci:** fix release-please component matching and add failure detection ([#107](https://github.com/terrazul-ai/tz/issues/107)) ([2059354](https://github.com/terrazul-ai/tz/commit/20593544f8946d5bd2b3b62d0300c2505e250e50))
+
 ## [0.22.3](https://github.com/terrazul-ai/tz/compare/v0.22.2...v0.22.3) (2026-02-23)
 
 
