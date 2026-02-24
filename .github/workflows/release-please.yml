@@ -23,7 +23,7 @@ jobs:
           target-branch: ${{ github.ref_name }}
 
       - name: Verify release created for release PR merges
-        if: "startsWith(github.event.head_commit.message, 'chore: release main')"
+        if: "startsWith(github.event.head_commit.message, 'chore(main): release') || startsWith(github.event.head_commit.message, 'chore: release main')"
         env:
           RELEASES_CREATED: ${{ steps.release.outputs.releases_created }}
         run: |
