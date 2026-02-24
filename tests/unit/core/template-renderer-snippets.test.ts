@@ -288,7 +288,9 @@ cli_version = "0.1.0"
     const askUserSnippets = pkgCache.snippets.filter((s: { type: string }) => s.type === 'askUser');
     expect(askUserSnippets.length).toBeGreaterThanOrEqual(1);
     // Should NOT have any askAgent snippets (since it failed)
-    const askAgentSnippets = pkgCache.snippets.filter((s: { type: string }) => s.type === 'askAgent');
+    const askAgentSnippets = pkgCache.snippets.filter(
+      (s: { type: string }) => s.type === 'askAgent',
+    );
     expect(askAgentSnippets).toHaveLength(0);
   });
 });
