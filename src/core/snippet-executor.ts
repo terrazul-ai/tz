@@ -115,16 +115,23 @@ async function runAskUser(
   // Check persistent cache first (unless --no-cache)
   if (!options.noCache && options.cacheManager && options.packageName && options.packageVersion) {
     const cacheKey = await generateSnippetId(snippet);
+    if (options.verbose) {
+      console.log(
+        `[snippet-executor] askUser cache lookup: pkg=${options.packageName}@${options.packageVersion}, snippetId=${cacheKey}, noCache=${options.noCache}`,
+      );
+    }
+    const diagnostics: { missReason?: string } = {};
     const cached = options.cacheManager.getSnippet(
       options.packageName,
       options.packageVersion,
       cacheKey,
+      diagnostics,
     );
     if (cached) {
       const parsed = safeJsonParse(cached.value);
       if (parsed.success) {
         if (options.verbose) {
-          console.log(`Using cached value for askUser snippet ${snippet.id}`);
+          console.log(`[snippet-executor] askUser cache HIT for snippet ${snippet.id}`);
         }
         options.report?.({ type: 'askUser:end', snippet, answer: parsed.value as string });
         return { value: parsed.value };
@@ -132,10 +139,23 @@ async function runAskUser(
       // Invalid JSON in cache - treat as cache miss and continue to re-prompt
       if (options.verbose) {
         console.warn(
-          `Invalid JSON in askUser cache for snippet ${snippet.id}, treating as cache miss`,
+          `[snippet-executor] askUser cache: invalid JSON for snippet ${snippet.id}, treating as cache miss`,
         );
       }
+    } else if (options.verbose) {
+      console.log(
+        `[snippet-executor] askUser cache MISS for snippet ${snippet.id}: ${diagnostics.missReason}`,
+      );
     }
+  } else if (options.verbose) {
+    const reasons = [];
+    if (options.noCache) reasons.push('noCache=true');
+    if (!options.cacheManager) reasons.push('no cacheManager');
+    if (!options.packageName) reasons.push('no packageName');
+    if (!options.packageVersion) reasons.push('no packageVersion');
+    console.log(
+      `[snippet-executor] askUser cache SKIPPED for snippet ${snippet.id}: ${reasons.join(', ')}`,
+    );
   }
 
   const placeholder = snippet.options.placeholder;
@@ -169,6 +189,11 @@ async function runAskUser(
       value: JSON.stringify(answers.value),
       timestamp: new Date().toISOString(),
     });
+    if (options.verbose) {
+      console.log(
+        `[snippet-executor] askUser cache WRITE: pkg=${options.packageName}@${options.packageVersion}, snippetId=${cacheKey}`,
+      );
+    }
   }
 
   return { value: answers.value };
@@ -185,16 +210,23 @@ async function runAskAgent(
   // Check persistent cache first (unless --no-cache)
   if (!options.noCache && options.cacheManager && options.packageName && options.packageVersion) {
     const persistentCacheKey = await generateSnippetId(snippet, options.packageDir);
+    if (options.verbose) {
+      console.log(
+        `[snippet-executor] askAgent cache lookup: pkg=${options.packageName}@${options.packageVersion}, snippetId=${persistentCacheKey}, noCache=${options.noCache}`,
+      );
+    }
+    const diagnostics: { missReason?: string } = {};
     const persistentCached = options.cacheManager.getSnippet(
       options.packageName,
       options.packageVersion,
       persistentCacheKey,
+      diagnostics,
     );
     if (persistentCached) {
       const parsed = safeJsonParse(persistentCached.value);
       if (parsed.success) {
         if (options.verbose) {
-          console.log(`Using cached value for askAgent snippet ${snippet.id}`);
+          console.log(`[snippet-executor] askAgent cache HIT for snippet ${snippet.id}`);
         }
         const basePrompt = await resolvePrompt(snippet, options.packageDir, promptCache);
         options.report?.({
@@ -208,10 +240,23 @@ async function runAskAgent(
       // Invalid JSON in cache - treat as cache miss and continue to re-execute
       if (options.verbose) {
         console.warn(
-          `Invalid JSON in askAgent cache for snippet ${snippet.id}, treating as cache miss`,
+          `[snippet-executor] askAgent cache: invalid JSON for snippet ${snippet.id}, treating as cache miss`,
         );
       }
+    } else if (options.verbose) {
+      console.log(
+        `[snippet-executor] askAgent cache MISS for snippet ${snippet.id}: ${diagnostics.missReason}`,
+      );
     }
+  } else if (options.verbose) {
+    const reasons = [];
+    if (options.noCache) reasons.push('noCache=true');
+    if (!options.cacheManager) reasons.push('no cacheManager');
+    if (!options.packageName) reasons.push('no packageName');
+    if (!options.packageVersion) reasons.push('no packageVersion');
+    console.log(
+      `[snippet-executor] askAgent cache SKIPPED for snippet ${snippet.id}: ${reasons.join(', ')}`,
+    );
   }
 
   const basePrompt = await resolvePrompt(snippet, options.packageDir, promptCache);
@@ -308,6 +353,11 @@ async function runAskAgent(
       timestamp: new Date().toISOString(),
       tool: toolSpec.type,
     });
+    if (options.verbose) {
+      console.log(
+        `[snippet-executor] askAgent cache WRITE: pkg=${options.packageName}@${options.packageVersion}, snippetId=${persistentCacheKey}`,
+      );
+    }
   }
 
   return result;

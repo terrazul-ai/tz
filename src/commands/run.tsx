@@ -8,6 +8,7 @@ import { DependencyResolver } from '../core/dependency-resolver.js';
 import { ErrorCode, TerrazulError } from '../core/errors.js';
 import { LockfileManager } from '../core/lock-file.js';
 import { PackageManager } from '../core/package-manager.js';
+import { SnippetCacheManager } from '../core/snippet-cache.js';
 import { planAndRender } from '../core/template-renderer.js';
 import {
   aggregateMCPConfigs,
@@ -158,6 +159,18 @@ async function autoInstallPackage(
   // Update lockfile
   const updated = LockfileManager.merge(existingLock, updates);
   LockfileManager.write(updated, projectRoot);
+
+  // Invalidate snippet cache for packages with version changes
+  const cacheFilePath = path.join(projectRoot, 'agents-cache.toml');
+  const cacheManager = new SnippetCacheManager(cacheFilePath);
+  await cacheManager.read();
+  for (const [pkgName, info] of resolved) {
+    const oldVersion = existingLock?.packages[pkgName]?.version;
+    if (oldVersion && oldVersion !== info.version) {
+      await cacheManager.clearPackage(pkgName);
+      ctx.logger.debug(`Cleared snippet cache for ${pkgName} (${oldVersion} -> ${info.version})`);
+    }
+  }
 
   // Update manifest
   await updateManifestWithDependency(projectRoot, packageName, versionRange);

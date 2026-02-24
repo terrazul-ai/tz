@@ -203,15 +203,34 @@ export class SnippetCacheManager {
   }
 
   /**
-   * Get cached snippet value
+   * Get cached snippet value.
+   * When `diagnostics` is provided, it is populated with the miss reason on cache miss.
    */
-  getSnippet(packageName: string, version: string, snippetId: string): CachedSnippet | null {
+  getSnippet(
+    packageName: string,
+    version: string,
+    snippetId: string,
+    diagnostics?: { missReason?: string },
+  ): CachedSnippet | null {
     const pkgCache = this.cache.packages[packageName];
-    if (!pkgCache || pkgCache.version !== version) {
+    if (!pkgCache) {
+      if (diagnostics) {
+        diagnostics.missReason = `no cache entry for package "${packageName}"`;
+      }
+      return null;
+    }
+    if (pkgCache.version !== version) {
+      if (diagnostics) {
+        diagnostics.missReason = `version mismatch for "${packageName}": cached=${pkgCache.version}, requested=${version}`;
+      }
       return null;
     }
 
-    return pkgCache.snippets.find((s) => s.id === snippetId) || null;
+    const found = pkgCache.snippets.find((s) => s.id === snippetId) || null;
+    if (!found && diagnostics) {
+      diagnostics.missReason = `snippet "${snippetId}" not found in cache for "${packageName}@${version}"`;
+    }
+    return found;
   }
 
   /**

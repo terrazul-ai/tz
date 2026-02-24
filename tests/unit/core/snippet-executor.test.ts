@@ -611,7 +611,7 @@ describe('snippet executor', () => {
         expect(context.snippets.snippet_0.value).toBe('NewAnswer');
         // Should have logged a warning about invalid cache
         expect(warnSpy).toHaveBeenCalledWith(
-          expect.stringContaining('Invalid JSON in askUser cache'),
+          expect.stringContaining('askUser cache: invalid JSON'),
         );
         // Should have saved the new value to cache
         expect(setSnippetMock).toHaveBeenCalledTimes(1);
@@ -667,7 +667,7 @@ describe('snippet executor', () => {
         expect(context.snippets.snippet_0.value).toBe('Fresh result from agent');
         // Should have logged a warning about invalid cache
         expect(warnSpy).toHaveBeenCalledWith(
-          expect.stringContaining('Invalid JSON in askAgent cache'),
+          expect.stringContaining('askAgent cache: invalid JSON'),
         );
         // Should have saved the new value to cache
         expect(setSnippetMock).toHaveBeenCalledTimes(1);
