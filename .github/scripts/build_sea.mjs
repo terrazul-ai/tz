@@ -239,7 +239,7 @@ async function main() {
   } else if (process.platform === 'linux') {
     try {
       console.log('[build_sea] Stripping binary');
-      await run('strip', [binaryOutputPath]);
+      await run('strip', ['--strip-unneeded', binaryOutputPath]);
       console.log('[build_sea] Binary stripped successfully');
     } catch (error) {
       console.warn('[build_sea] strip failed:', error.message);
