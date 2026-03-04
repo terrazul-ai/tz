@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.22.5](https://github.com/terrazul-ai/tz/compare/v0.22.4...v0.22.5) (2026-03-04)
+
+
+### Bug Fixes
+
+* **sea:** use --strip-unneeded for linux binary to prevent segfault ([#110](https://github.com/terrazul-ai/tz/issues/110)) ([ddadba9](https://github.com/terrazul-ai/tz/commit/ddadba904dad70033c67e911c1963a9a4860a078))
+
 ## [0.22.4](https://github.com/terrazul-ai/tz/compare/v0.22.3...v0.22.4) (2026-02-24)
 
 
