@@ -236,15 +236,9 @@ async function main() {
     } catch (error) {
       console.warn('[build_sea] strip failed:', error.message);
     }
-  } else if (process.platform === 'linux') {
-    try {
-      console.log('[build_sea] Stripping binary');
-      await run('strip', ['--strip-unneeded', binaryOutputPath]);
-      console.log('[build_sea] Binary stripped successfully');
-    } catch (error) {
-      console.warn('[build_sea] strip failed:', error.message);
-    }
   }
+  // NOTE: Do NOT strip on Linux. GNU strip corrupts the postject-injected
+  // .note section containing the SEA blob, causing segfaults at runtime.
 
   // Sign the binary on macOS to prevent Gatekeeper from blocking it
   // This MUST happen after stripping since strip modifies the binary
