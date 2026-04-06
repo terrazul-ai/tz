@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.23.0](https://github.com/terrazul-ai/tz/compare/v0.22.6...v0.23.0) (2026-04-06)
+
+
+### Features
+
+* **commands:** add --dangerously-skip-permissions flag to tz run ([544807a](https://github.com/terrazul-ai/tz/commit/544807addec83e18f722493b6616b0aa5eb1fa34))
+
 ## [0.22.6](https://github.com/terrazul-ai/tz/compare/v0.22.5...v0.22.6) (2026-03-05)
 
 
