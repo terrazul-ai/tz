@@ -176,6 +176,8 @@ interface SpawnClaudeOptions {
   additionalArgs?: string[];
   /** Optional logger for debug output */
   logger?: Logger;
+  /** When true, pass --dangerously-skip-permissions to Claude */
+  dangerouslySkipPermissions?: boolean;
 }
 
 /**
@@ -185,7 +187,14 @@ interface SpawnClaudeOptions {
  * @internal
  */
 function spawnClaudeCodeInternal(options: SpawnClaudeOptions): Promise<number> {
-  const { mcpConfigPath, cwd, model, additionalArgs = [], logger } = options;
+  const {
+    mcpConfigPath,
+    cwd,
+    model,
+    additionalArgs = [],
+    logger,
+    dangerouslySkipPermissions,
+  } = options;
 
   return new Promise((resolve, reject) => {
     // Build base args: MCP config with strict mode
@@ -194,6 +203,11 @@ function spawnClaudeCodeInternal(options: SpawnClaudeOptions): Promise<number> {
     // Add model flag if specified (skip 'default' to use user's environment preference)
     if (model && model !== 'default') {
       args.push('--model', model);
+    }
+
+    // Skip all permission checks if requested
+    if (dangerouslySkipPermissions) {
+      args.push('--dangerously-skip-permissions');
     }
 
     // Append any additional arguments
@@ -313,6 +327,7 @@ export async function spawnClaudeCodeHeadless(
   cwd?: string,
   model?: string,
   logger?: Logger,
+  dangerouslySkipPermissions?: boolean,
 ): Promise<number> {
   return spawnClaudeCodeInternal({
     mcpConfigPath,
@@ -320,5 +335,6 @@ export async function spawnClaudeCodeHeadless(
     model,
     additionalArgs: ['-p', prompt],
     logger,
+    dangerouslySkipPermissions,
   });
 }

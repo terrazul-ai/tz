@@ -350,6 +350,68 @@ describe('tool-spawner', () => {
         expect(spawnOptions.env?.CODEX_HOME).toBeUndefined();
       });
     });
+
+    describe('dangerouslySkipPermissions', () => {
+      it('passes --dangerously-skip-permissions for Claude when enabled', async () => {
+        mockSpawn.mockReturnValue(createMockChildProcess());
+
+        const tool: ToolSpec = { type: 'claude' };
+        await spawnTool({ tool, cwd: tmpDir, dangerouslySkipPermissions: true });
+
+        const args = mockSpawn.mock.calls[0]?.[1] as string[];
+        expect(args).toContain('--dangerously-skip-permissions');
+      });
+
+      it('does NOT pass --dangerously-skip-permissions for Claude when not set', async () => {
+        mockSpawn.mockReturnValue(createMockChildProcess());
+
+        const tool: ToolSpec = { type: 'claude' };
+        await spawnTool({ tool, cwd: tmpDir });
+
+        const args = mockSpawn.mock.calls[0]?.[1] as string[];
+        expect(args).not.toContain('--dangerously-skip-permissions');
+      });
+
+      it('passes --dangerously-bypass-approvals-and-sandbox for Codex when enabled', async () => {
+        mockSpawn.mockReturnValue(createMockChildProcess());
+
+        const tool: ToolSpec = { type: 'codex' };
+        await spawnTool({ tool, cwd: tmpDir, dangerouslySkipPermissions: true });
+
+        const args = mockSpawn.mock.calls[0]?.[1] as string[];
+        expect(args).toContain('--dangerously-bypass-approvals-and-sandbox');
+      });
+
+      it('does NOT pass --dangerously-bypass-approvals-and-sandbox for Codex when not set', async () => {
+        mockSpawn.mockReturnValue(createMockChildProcess());
+
+        const tool: ToolSpec = { type: 'codex' };
+        await spawnTool({ tool, cwd: tmpDir });
+
+        const args = mockSpawn.mock.calls[0]?.[1] as string[];
+        expect(args).not.toContain('--dangerously-bypass-approvals-and-sandbox');
+      });
+
+      it('passes --yolo for Gemini when enabled', async () => {
+        mockSpawn.mockReturnValue(createMockChildProcess());
+
+        const tool: ToolSpec = { type: 'gemini' };
+        await spawnTool({ tool, cwd: tmpDir, dangerouslySkipPermissions: true });
+
+        const args = mockSpawn.mock.calls[0]?.[1] as string[];
+        expect(args).toContain('--yolo');
+      });
+
+      it('does NOT pass --yolo for Gemini when not set', async () => {
+        mockSpawn.mockReturnValue(createMockChildProcess());
+
+        const tool: ToolSpec = { type: 'gemini' };
+        await spawnTool({ tool, cwd: tmpDir });
+
+        const args = mockSpawn.mock.calls[0]?.[1] as string[];
+        expect(args).not.toContain('--yolo');
+      });
+    });
   });
 
   describe('loadMCPConfig', () => {

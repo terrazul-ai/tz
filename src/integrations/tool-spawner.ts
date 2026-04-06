@@ -19,6 +19,8 @@ export interface SpawnToolOptions {
   codexHome?: string;
   /** Logger for debug output */
   logger?: Logger;
+  /** When true, pass each tool's native "skip all permissions" flag */
+  dangerouslySkipPermissions?: boolean;
 }
 
 /**
@@ -51,7 +53,7 @@ export async function spawnTool(options: SpawnToolOptions): Promise<number> {
  * Spawn Claude Code CLI with MCP config
  */
 async function spawnClaudeCodeInternal(options: SpawnToolOptions): Promise<number> {
-  const { tool, cwd, mcpConfigPath, additionalArgs = [] } = options;
+  const { tool, cwd, mcpConfigPath, additionalArgs = [], dangerouslySkipPermissions } = options;
 
   return new Promise((resolve, reject) => {
     const command = tool.command ?? 'claude';
@@ -65,6 +67,11 @@ async function spawnClaudeCodeInternal(options: SpawnToolOptions): Promise<numbe
     // Add model flag if specified (skip 'default' to use user's environment preference)
     if (tool.model && tool.model !== 'default') {
       args.push('--model', tool.model);
+    }
+
+    // Skip all permission checks if requested
+    if (dangerouslySkipPermissions) {
+      args.push('--dangerously-skip-permissions');
     }
 
     // Add any additional args
@@ -105,7 +112,15 @@ async function spawnClaudeCodeInternal(options: SpawnToolOptions): Promise<numbe
  * For interactive spawning, we just run 'codex' directly.
  */
 async function spawnCodexInternal(options: SpawnToolOptions): Promise<number> {
-  const { tool, cwd, mcpConfig, additionalArgs = [], codexHome, logger } = options;
+  const {
+    tool,
+    cwd,
+    mcpConfig,
+    additionalArgs = [],
+    codexHome,
+    logger,
+    dangerouslySkipPermissions,
+  } = options;
 
   return new Promise((resolve, reject) => {
     const command = tool.command ?? 'codex';
@@ -117,6 +132,11 @@ async function spawnCodexInternal(options: SpawnToolOptions): Promise<number> {
     // Add model if specified
     if (tool.model && tool.model !== 'default') {
       args.push('--model', tool.model);
+    }
+
+    // Skip all approval prompts and sandboxing if requested
+    if (dangerouslySkipPermissions) {
+      args.push('--dangerously-bypass-approvals-and-sandbox');
     }
 
     // Add MCP config overrides if present
@@ -186,7 +206,7 @@ async function spawnCodexInternal(options: SpawnToolOptions): Promise<number> {
  * so no need to pass via command-line args.
  */
 async function spawnGeminiInternal(options: SpawnToolOptions): Promise<number> {
-  const { tool, cwd, additionalArgs = [] } = options;
+  const { tool, cwd, additionalArgs = [], dangerouslySkipPermissions } = options;
 
   return new Promise((resolve, reject) => {
     const command = tool.command ?? 'gemini';
@@ -198,6 +218,11 @@ async function spawnGeminiInternal(options: SpawnToolOptions): Promise<number> {
     // Add model if specified
     if (tool.model && tool.model !== 'default') {
       args.push('--model', tool.model);
+    }
+
+    // Skip all permission prompts if requested (YOLO mode)
+    if (dangerouslySkipPermissions) {
+      args.push('--yolo');
     }
 
     // Gemini reads MCP config from .gemini/settings.json (project-level)

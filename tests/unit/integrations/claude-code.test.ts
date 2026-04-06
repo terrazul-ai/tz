@@ -584,6 +584,35 @@ cli_version = "0.1.0"
       expect(options.stdio).toBe('inherit');
     });
 
+    it('includes --dangerously-skip-permissions when flag is true', async () => {
+      mockSpawn.mockReturnValue(createMockChildProcess());
+
+      await spawnClaudeCodeHeadless(
+        '/tmp/mcp.json',
+        'test prompt',
+        '/tmp',
+        undefined,
+        undefined,
+        true,
+      );
+
+      expect(mockSpawn).toHaveBeenCalledOnce();
+      const args = mockSpawn.mock.calls[0]?.[1] as string[];
+      expect(args).toContain('--dangerously-skip-permissions');
+      expect(args).toContain('-p');
+      expect(args).toContain('test prompt');
+    });
+
+    it('does NOT include --dangerously-skip-permissions when flag is not set', async () => {
+      mockSpawn.mockReturnValue(createMockChildProcess());
+
+      await spawnClaudeCodeHeadless('/tmp/mcp.json', 'test prompt');
+
+      expect(mockSpawn).toHaveBeenCalledOnce();
+      const args = mockSpawn.mock.calls[0]?.[1] as string[];
+      expect(args).not.toContain('--dangerously-skip-permissions');
+    });
+
     it('throws TOOL_NOT_FOUND on ENOENT error', async () => {
       // EventEmitter is required here because ChildProcess extends it (not EventTarget)
       // eslint-disable-next-line unicorn/prefer-event-target

@@ -584,6 +584,7 @@ async function spawnToolWithConfig(
   tool: ToolSpec,
   prompt?: string,
   codexHome?: string,
+  dangerouslySkipPermissions?: boolean,
 ): Promise<number> {
   const isHeadless = !!prompt;
 
@@ -612,7 +613,14 @@ async function spawnToolWithConfig(
       );
     }
     ctx.logger.info('Running Claude Code in headless mode...');
-    return spawnClaudeCodeHeadless(mcpResult.configPath, prompt, projectRoot, model, ctx.logger);
+    return spawnClaudeCodeHeadless(
+      mcpResult.configPath,
+      prompt,
+      projectRoot,
+      model,
+      ctx.logger,
+      dangerouslySkipPermissions,
+    );
   }
 
   // Log launch message
@@ -633,6 +641,7 @@ async function spawnToolWithConfig(
     mcpConfigPath: mcpResult.configPath,
     codexHome,
     logger: ctx.logger,
+    dangerouslySkipPermissions,
   });
 
   return exitCode;
@@ -825,6 +834,10 @@ export function registerRunCommand(
     .option('--no-tool-safe-mode', 'Disable safe mode for tool execution')
     .option('--force', 'Force re-rendering even if files already exist')
     .option('--no-cache', 'Skip snippet cache (re-execute all askAgent/askUser prompts)')
+    .option(
+      '--dangerously-skip-permissions',
+      "Skip all permission prompts (maps to each tool's native flag)",
+    )
     .option('-p, --prompt <prompt>', 'Run in headless mode with the given prompt')
     .action(
       async (
@@ -835,6 +848,7 @@ export function registerRunCommand(
           toolSafeMode?: boolean;
           force?: boolean;
           cache?: boolean;
+          dangerouslySkipPermissions?: boolean;
           prompt?: string;
         },
       ) => {
@@ -944,6 +958,7 @@ export function registerRunCommand(
               toolSpec,
               opts.prompt,
               codexSession?.codexHome,
+              opts.dangerouslySkipPermissions,
             );
             process.exitCode = exitCode;
           } finally {
